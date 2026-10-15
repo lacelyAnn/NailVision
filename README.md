@@ -1,48 +1,47 @@
-# Nailvision1
+# NailVision
 
-This template should help get you started developing with Vue 3 in Vite.
+Vue 3 + Vite frontend (nail detection runs in the browser via ONNX) and a Python Stable Diffusion service (`sd-server/`) that generates nail designs.
 
-## Recommended IDE Setup
+## Requirements
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- Node.js 20+ (24 recommended) and npm
+- Python 3.12 (only if you run `sd-server` locally)
+- ~2 GB free disk for the SD weights (only for real generation; not needed with `MOCK=1`)
 
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+## Run the frontend
 
 ```sh
 npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
+cp .env.example .env     # set VITE_SD_URL (default http://localhost:8000)
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
+Other scripts: `npm run build`, `npm run lint`.
+
+## Run the SD server locally
 
 ```sh
-npm run build
+cd sd-server
+python -m venv .venv
+.venv\Scripts\activate                     # macOS/Linux: source .venv/bin/activate
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
 ```
 
-### Lint with [ESLint](https://eslint.org/)
+Quick test without Stable Diffusion (fast fake output):
 
 ```sh
-npm run lint
+# PowerShell: $env:MOCK = "1"      bash: export MOCK=1
+python -m uvicorn server:app --port 8000
 ```
+
+Real generation: unset `MOCK`. The first job downloads the model (~2 GB) into `MODEL_DIR` (default `../gpu/sd15-inpainting`) and is slow on CPU.
+
+Check it is up: <http://localhost:8000/health>
+
+## Deploy
+
+- **sd-server → Render**: Docker service from `sd-server/` (see `Dockerfile`). Mount a persistent disk at `/models` or the weights re-download on every restart. Env vars: see `sd-server/.env.example`.
+- **frontend → Vercel**: set `VITE_SD_URL` (your Render URL) and optionally `VITE_SD_TOKEN` (see `.env.example`). Set `ALLOWED_ORIGINS` on Render to your Vercel URL.
+
+CPU generation on Render is slow by design; the frontend polls the job until the designs are ready.
