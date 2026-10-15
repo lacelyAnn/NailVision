@@ -137,7 +137,7 @@ export function drawDetections(
   canvas: HTMLCanvasElement,
   img: HTMLImageElement,
   d: Detection,
-  selected: number | null,
+  selected: number[],
 ) {
   const W = img.naturalWidth,
     H = img.naturalHeight
@@ -153,7 +153,7 @@ export function drawDetections(
   ctx.textAlign = 'center'
   for (const n of d.nails) {
     const [x0, y0, x1] = n.box
-    const sel = n.number === selected
+    const sel = selected.includes(n.number)
     ctx.lineWidth = th
     ctx.strokeStyle = sel ? '#22d3ee' : '#ff00b4'
     ctx.strokeRect(x0, y0, x1 - x0, n.box[3] - y0)

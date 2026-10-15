@@ -22,13 +22,13 @@ export interface Job {
 
 export async function startJob(
   photo: Blob,
-  mask: Blob,
+  masks: Blob[],
   colors: string[],
   steps: number,
 ): Promise<string> {
   const f = new FormData()
   f.append('photo', photo, 'photo.jpg')
-  f.append('mask', mask, 'mask.png')
+  masks.forEach((m, i) => f.append('masks', m, `mask${i}.png`))
   f.append('colors', colors.join(','))
   f.append('steps', String(steps))
   const r = await fetch(`${API}/jobs`, { method: 'POST', body: f, headers })

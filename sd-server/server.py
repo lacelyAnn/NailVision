@@ -61,35 +61,28 @@ def jpeg_b64(img, q=92):
     return base64.b64encode(b.getvalue()).decode()
 
 
-def run_job(job, photo, nail_mask, client_hex, seed, steps, strength, guidance):
+def run_job(job, photo, nail_masks, client_hex, seed, steps, strength, guidance):
+    """One design per nail mask (max 5), appended to job["designs"] as each finishes."""
     try:
         client = [nv.parse_color(c) for c in client_hex]
-        box = nv.square_crop_box(nail_mask, photo.size)
-        crop, cmask = nv.crop_to(photo, nail_mask, box, 512)
-        inpaint_mask = nv.dilate(cmask, 4)
-        mask_img = Image.fromarray(inpaint_mask.astype(np.uint8) * 255)
-        paste_mask = nv.dilate(nail_mask, max(2, round(4 * (box[2] - box[0]) / 512)))
-
         rng = random.Random(seed)
-        styles = rng.sample(list(nv.STYLES), 5)
-        slots = []
-        for i in range(3):
-            pal = client[i:] + client[:i]
-            slots.append(dict(slot=i + 1, kind="palette", palette=pal, target=client, style=styles[i],
-                              label=f"Palette {i+1} · {nv.color_name(pal[0])} base"))
-        for j in range(2):
-            pal, scheme = nv.random_palette(rng)
-            slots.append(dict(slot=4 + j, kind="random", palette=pal, target=pal, style=styles[3 + j],
-                              label=f"Random {j+1} · {scheme}"))
-
+        styles = rng.sample(list(nv.STYLES), len(nail_masks))
         pipe = None if MOCK else get_pipe()
         job["status"] = "running"
-        for s in slots:
+        for i, nail_mask in enumerate(nail_masks):
             t = time.time()
-            prompt = nv.build_prompt(s["style"], s["palette"], use_trigger=False)
+            box = nv.square_crop_box(nail_mask, photo.size)
+            crop, cmask = nv.crop_to(photo, nail_mask, box, 512)
+            inpaint_mask = nv.dilate(cmask, 4)
+            mask_img = Image.fromarray(inpaint_mask.astype(np.uint8) * 255)
+            paste_mask = nv.dilate(nail_mask, max(2, round(4 * (box[2] - box[0]) / 512)))
+
+            pal = client[i % 3:] + client[:i % 3]
+            style = styles[i]
+            prompt = nv.build_prompt(style, pal, use_trigger=False)
             slot_seed = rng.randint(0, 2**31 - 1)
-            seed_img = nv.make_palette_seed(crop, inpaint_mask, s["palette"], random.Random(slot_seed),
-                                            layout=nv.STYLE_LAYOUT.get(s["style"]))
+            seed_img = nv.make_palette_seed(crop, inpaint_mask, pal, random.Random(slot_seed),
+                                            layout=nv.STYLE_LAYOUT.get(style))
             if pipe is None:
                 out = seed_img
             else:
@@ -97,13 +90,13 @@ def run_job(job, photo, nail_mask, client_hex, seed, steps, strength, guidance):
                 out = pipe(prompt=prompt, negative_prompt=nv.NEGATIVE_PROMPT, image=seed_img, mask_image=mask_img,
                            height=512, width=512, strength=strength, guidance_scale=guidance,
                            num_inference_steps=steps, generator=g).images[0]
-            adh = nv.color_adherence(out, cmask, s["target"])
-            full = nv.paste_back(photo, out, box, paste_mask)
+            adh = nv.color_adherence(out, cmask, pal)
+            photo = nv.paste_back(photo, out, box, paste_mask)  # later nails build on earlier ones
             job["designs"].append(dict(
-                slot=s["slot"], kind=s["kind"], label=s["label"], style=s["style"],
-                palette_hex=[nv.rgb_to_hex(c) for c in s["palette"]], prompt=prompt, seed=slot_seed,
+                slot=i + 1, kind="palette", label=f"Nail {i+1}", style=style,
+                palette_hex=[nv.rgb_to_hex(c) for c in pal], prompt=prompt, seed=slot_seed,
                 delta_e=adh["mean_delta_e"], on_palette=adh["coverage"], seconds=time.time() - t,
-                full_jpeg_b64=jpeg_b64(full), zoom_jpeg_b64=jpeg_b64(out)))
+                full_jpeg_b64=jpeg_b64(photo), zoom_jpeg_b64=jpeg_b64(out)))
         job["status"] = "done"
     except Exception as e:  # surfaced to the client via GET /jobs/{id}
         job["status"], job["error"] = "failed", f"{type(e).__name__}: {e}"
@@ -123,7 +116,7 @@ def health():
 
 
 @app.post("/jobs")
-async def create_job(photo: UploadFile = File(...), mask: UploadFile = File(...), colors: str = Form(...),
+async def create_job(photo: UploadFile = File(...), masks: list[UploadFile] = File(...), colors: str = Form(...),
                      seed: int | None = Form(None), steps: int = Form(30), strength: float = Form(0.9),
                      guidance: float = Form(7.5)):
     hexes = [c.strip() for c in colors.split(",")]
@@ -132,16 +125,21 @@ async def create_job(photo: UploadFile = File(...), mask: UploadFile = File(...)
     img = ImageOps.exif_transpose(Image.open(io.BytesIO(await photo.read()))).convert("RGB")
     if max(img.size) > 2048:
         img.thumbnail((2048, 2048), Image.LANCZOS)
-    m = Image.open(io.BytesIO(await mask.read())).convert("L").resize(img.size, Image.NEAREST)
-    nail = np.asarray(m) > 127
-    if nail.sum() == 0:
-        raise HTTPException(400, "Empty nail mask.")
+    if not 1 <= len(masks) <= 5:
+        raise HTTPException(400, "Send 1 to 5 nail masks.")
+    nails = []
+    for mk in masks:
+        m = Image.open(io.BytesIO(await mk.read())).convert("L").resize(img.size, Image.NEAREST)
+        nail = np.asarray(m) > 127
+        if nail.sum() == 0:
+            raise HTTPException(400, "Empty nail mask.")
+        nails.append(nail)
     seed = random.randint(0, 2**31 - 1) if seed is None else seed
     jid = uuid.uuid4().hex[:12]
     job = jobs[jid] = dict(status="queued", designs=[], seed=seed, error=None)
     for old in list(jobs)[:-20]:
         jobs.pop(old, None)
-    threading.Thread(target=run_job, args=(job, img, nail, hexes, seed, steps, strength, guidance), daemon=True).start()
+    threading.Thread(target=run_job, args=(job, img, nails, hexes, seed, steps, strength, guidance), daemon=True).start()
     return {"job_id": jid, "status": "queued"}
 
 

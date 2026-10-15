@@ -13,7 +13,8 @@ const conf = ref([0.35])
 const busy = ref(false)
 const error = ref('')
 const det = ref<Detection | null>(null)
-const selected = ref<number | null>(null)
+const selected = ref<number[]>([])
+const designNails = ref<number[]>([]) // nail numbers, same order as designs
 const hasPhoto = ref(false)
 const photoName = ref('')
 const photoUrl = ref('')
@@ -28,7 +29,7 @@ const designs = ref<Design[]>([])
 const service = ref<'checking' | 'online' | 'offline'>('checking')
 let timer: number | undefined
 
-const pending = computed(() => (generating.value ? Math.max(0, 5 - designs.value.length) : 0))
+const pending = computed(() => (generating.value ? Math.max(0, designNails.value.length - designs.value.length) : 0))
 
 const redraw = () =>
   img && det.value && canvas.value && drawDetections(canvas.value, img, det.value, selected.value)
@@ -39,7 +40,7 @@ async function run() {
   error.value = ''
   try {
     det.value = await detectNails(img, conf.value[0] ?? 0.35)
-    selected.value = null
+    selected.value = []
     designs.value = []
     await nextTick()
     redraw()
@@ -74,17 +75,19 @@ async function refreshService() {
 }
 
 async function generate() {
-  const n = det.value?.nails.find((x) => x.number === selected.value)
-  if (!n || !img || !file || !det.value) return
+  const d = det.value
+  const nails = d ? d.nails.filter((x) => selected.value.includes(x.number)) : []
+  if (!nails.length || !img || !file || !d) return
   clearInterval(timer)
   error.value = ''
   designs.value = []
+  designNails.value = nails.map((x) => x.number)
   generating.value = true
-  genStatus.value = 'Sending the nail to the design service'
+  genStatus.value = 'Sending the nails to the design service'
   try {
     const id = await startJob(
       file,
-      await nailMaskBlob(img, det.value, n),
+      await Promise.all(nails.map((n) => nailMaskBlob(img!, d, n))),
       colors.value,
       steps.value[0] ?? 30,
     )
@@ -93,7 +96,7 @@ async function generate() {
         const j = await getJob(id)
         designs.value = j.designs
         genStatus.value =
-          j.status === 'done' ? '' : `Painting design ${Math.min(5, j.designs.length + 1)} of 5`
+          j.status === 'done' ? '' : `Painting nail ${Math.min(nails.length, j.designs.length + 1)} of ${nails.length}`
         if (j.status === 'failed') error.value = j.error ?? 'Generation failed'
         if (j.status === 'done' || j.status === 'failed') {
           clearInterval(timer)
@@ -114,6 +117,12 @@ async function generate() {
       (e instanceof Error ? e.message : String(e)) +
       '. Check that the design service is running on port 8000.'
   }
+}
+
+function toggle(n: number) {
+  const s = selected.value
+  if (s.includes(n)) selected.value = s.filter((x) => x !== n)
+  else if (s.length < 5) selected.value = [...s, n].sort((a, b) => a - b)
 }
 
 const match = (de: number) =>
@@ -263,7 +272,9 @@ onBeforeUnmount(() => clearInterval(timer))
           </Card>
 
           <Card class="p-5">
-            <h2 class="font-display text-base font-bold">Nail</h2>
+            <h2 class="font-display text-base font-bold">
+              Nails <span class="text-muted-foreground text-xs font-normal">(pick up to 5)</span>
+            </h2>
             <p v-if="!det?.nails.length" class="text-muted-foreground mt-2 text-sm">
               {{
                 hasPhoto && !busy
@@ -275,25 +286,25 @@ onBeforeUnmount(() => clearInterval(timer))
               <button
                 v-for="n in det.nails"
                 :key="n.number"
-                :aria-pressed="selected === n.number"
+                :aria-pressed="selected.includes(n.number)"
                 :aria-label="`Nail ${n.number}, ${(n.conf * 100).toFixed(0)} percent confidence`"
                 class="focus-visible:ring-ring/50 flex size-11 cursor-pointer items-center justify-center rounded-lg border text-sm font-bold tabular-nums transition-colors outline-none focus-visible:ring-[3px]"
                 :class="
-                  selected === n.number
+                  selected.includes(n.number)
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-card hover:bg-accent'
                 "
-                @click="selected = selected === n.number ? null : n.number"
+                @click="toggle(n.number)"
               >
                 {{ n.number }}
               </button>
             </div>
           </Card>
 
-          <Card class="p-5" :class="{ 'opacity-60': !selected }">
+          <Card class="p-5" :class="{ 'opacity-60': !selected.length }">
             <h2 class="font-display text-base font-bold">Polishes</h2>
             <p class="text-muted-foreground mt-1 text-xs leading-relaxed">
-              Each of the first three designs uses one of these as its base.
+              Each nail gets its own design, using these polishes in rotation.
             </p>
             <div class="mt-3 flex gap-3">
               <label v-for="(_, i) in colors" :key="i" class="flex flex-1 flex-col gap-1.5 text-xs">
@@ -333,14 +344,14 @@ onBeforeUnmount(() => clearInterval(timer))
             <Button
               size="lg"
               class="mt-5 w-full"
-              :disabled="!selected || generating"
+              :disabled="!selected.length || generating"
               @click="generate"
             >
               <Loader v-if="generating" class="animate-spin" /><Sparkles v-else />
-              {{ generating ? 'Generating' : 'Generate 5 designs' }}
+              {{ generating ? 'Generating' : `Generate ${selected.length || ''} ${selected.length === 1 ? 'design' : 'designs'}` }}
             </Button>
-            <p v-if="!selected" class="text-muted-foreground mt-2 text-center text-xs">
-              Choose a nail first.
+            <p v-if="!selected.length" class="text-muted-foreground mt-2 text-center text-xs">
+              Choose at least one nail.
             </p>
             <p
               v-if="genStatus"
@@ -358,27 +369,26 @@ onBeforeUnmount(() => clearInterval(timer))
         <div class="flex items-end justify-between">
           <div>
             <h2 class="font-display text-2xl font-bold tracking-tight">
-              Designs for nail {{ selected }}
+              Designs
             </h2>
             <p class="text-muted-foreground text-sm">
-              Three use your polishes. Two are suggestions we picked.
+              Each design appears as soon as it is finished.
             </p>
           </div>
         </div>
         <div
           class="mt-5 grid grid-cols-[repeat(auto-fill,14rem)] justify-center gap-4 sm:justify-start"
         >
-          <Card v-for="d in designs" :key="d.slot" class="overflow-hidden rounded-xl shadow-sm">
+          <Card v-for="(d, i) in designs" :key="d.slot" class="overflow-hidden rounded-xl shadow-sm">
             <img
               :src="`data:image/jpeg;base64,${d.zoom_jpeg_b64}`"
-              :alt="`${d.style} design for nail ${selected}`"
+              :alt="`${d.style} design for nail ${designNails[i]}`"
               class="size-56 object-cover"
             />
             <div class="flex flex-col gap-2 p-3">
               <div>
-                <p class="font-display text-sm leading-tight font-bold capitalize">{{ d.style }}</p>
-                <p class="text-muted-foreground text-xs">
-                  {{ d.kind === 'palette' ? 'Your polishes' : 'Suggested' }}
+                <p class="font-display text-sm leading-tight font-bold capitalize">
+                  Nail {{ designNails[i] }} · {{ d.style }}
                 </p>
               </div>
               <div class="flex items-center gap-1">
@@ -390,7 +400,7 @@ onBeforeUnmount(() => clearInterval(timer))
                 />
                 <a
                   :href="`data:image/jpeg;base64,${d.full_jpeg_b64}`"
-                  :download="`nailvision-nail${selected}-design${d.slot}.jpg`"
+                  :download="`nailvision-nail${designNails[i]}.jpg`"
                   class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 ml-auto rounded p-1 outline-none focus-visible:ring-[3px]"
                   title="Save full photo"
                   aria-label="Save full photo"
@@ -399,7 +409,7 @@ onBeforeUnmount(() => clearInterval(timer))
                 </a>
               </div>
               <p class="text-xs font-medium" :class="match(d.delta_e).cls">
-                {{ d.kind === 'palette' ? match(d.delta_e).text : 'Random palette' }}
+                {{ match(d.delta_e).text }}
               </p>
             </div>
           </Card>
