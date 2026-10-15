@@ -61,42 +61,77 @@ def jpeg_b64(img, q=92):
     return base64.b64encode(b.getvalue()).decode()
 
 
+def match_color(out, cmask, ref, rmask):
+    """Shift out's nail colours (LAB mean/std) onto ref's so every nail of a design shares one palette."""
+    o = nv.rgb2lab(np.asarray(out.convert("RGB"), np.float32) / 255)
+    f = nv.rgb2lab(np.asarray(ref.convert("RGB"), np.float32) / 255)
+    om, os_ = o[cmask].mean(0), o[cmask].std(0) + 1e-3
+    fm, fs = f[rmask].mean(0), f[rmask].std(0) + 1e-3
+    o[cmask] = (o[cmask] - om) / os_ * fs + fm
+    return Image.fromarray((nv.lab2rgb(o) * 255).clip(0, 255).astype(np.uint8))
+
+
 def run_job(job, photo, nail_masks, client_hex, seed, steps, strength, guidance):
-    """One design per nail mask (max 5), appended to job["designs"] as each finishes."""
+    """5 designs. Each design is painted on every selected nail (up to 5) and counts as one."""
     try:
         client = [nv.parse_color(c) for c in client_hex]
         rng = random.Random(seed)
-        styles = rng.sample(list(nv.STYLES), len(nail_masks))
-        pipe = None if MOCK else get_pipe()
-        job["status"] = "running"
-        for i, nail_mask in enumerate(nail_masks):
-            t = time.time()
+        styles = rng.sample(list(nv.STYLES), 5)
+        slots = []
+        for i in range(3):
+            pal = client[i:] + client[:i]
+            slots.append(dict(slot=i + 1, kind="palette", palette=pal, target=client, style=styles[i],
+                              label=f"Palette {i+1} · {nv.color_name(pal[0])} base"))
+        for j in range(2):
+            pal, scheme = nv.random_palette(rng)
+            slots.append(dict(slot=4 + j, kind="random", palette=pal, target=pal, style=styles[3 + j],
+                              label=f"Random {j+1} · {scheme}"))
+
+        # per nail: crop, masks, paste mask (independent of the design)
+        prep = []
+        for nail_mask in nail_masks:
             box = nv.square_crop_box(nail_mask, photo.size)
             crop, cmask = nv.crop_to(photo, nail_mask, box, 512)
             inpaint_mask = nv.dilate(cmask, 4)
-            mask_img = Image.fromarray(inpaint_mask.astype(np.uint8) * 255)
-            paste_mask = nv.dilate(nail_mask, max(2, round(4 * (box[2] - box[0]) / 512)))
+            prep.append(dict(
+                box=box, crop=crop, cmask=cmask, inpaint_mask=inpaint_mask,
+                mask_img=Image.fromarray(inpaint_mask.astype(np.uint8) * 255),
+                paste_mask=nv.dilate(nail_mask, max(2, round(4 * (box[2] - box[0]) / 512)))))
+        # region shown in the result card: all selected nails together
+        ux0, uy0 = min(p["box"][0] for p in prep), min(p["box"][1] for p in prep)
+        ux1, uy1 = max(p["box"][2] for p in prep), max(p["box"][3] for p in prep)
 
-            pal = client[i % 3:] + client[:i % 3]
-            style = styles[i]
-            prompt = nv.build_prompt(style, pal, use_trigger=False)
+        pipe = None if MOCK else get_pipe()
+        job["status"] = "running"
+        for s in slots:
+            t = time.time()
+            prompt = nv.build_prompt(s["style"], s["palette"], use_trigger=False)
             slot_seed = rng.randint(0, 2**31 - 1)
-            seed_img = nv.make_palette_seed(crop, inpaint_mask, pal, random.Random(slot_seed),
-                                            layout=nv.STYLE_LAYOUT.get(style))
-            if pipe is None:
-                out = seed_img
-            else:
-                g = torch.Generator("cpu").manual_seed(slot_seed)
-                out = pipe(prompt=prompt, negative_prompt=nv.NEGATIVE_PROMPT, image=seed_img, mask_image=mask_img,
-                           height=512, width=512, strength=strength, guidance_scale=guidance,
-                           num_inference_steps=steps, generator=g).images[0]
-            adh = nv.color_adherence(out, cmask, pal)
-            photo = nv.paste_back(photo, out, box, paste_mask)  # later nails build on earlier ones
+            full, deltas, ref = photo, [], None
+            for p in prep:  # same prompt, palette and seed on every nail = one design
+                seed_img = nv.make_palette_seed(p["crop"], p["inpaint_mask"], s["palette"],
+                                                random.Random(slot_seed),
+                                                layout=nv.STYLE_LAYOUT.get(s["style"]))
+                if pipe is None:
+                    out = seed_img
+                else:
+                    g = torch.Generator("cpu").manual_seed(slot_seed)
+                    out = pipe(prompt=prompt, negative_prompt=nv.NEGATIVE_PROMPT, image=seed_img,
+                               mask_image=p["mask_img"], height=512, width=512, strength=strength,
+                               guidance_scale=guidance, num_inference_steps=steps, generator=g).images[0]
+                if ref is None:
+                    ref = (out, p["cmask"])  # first nail sets the colours for the rest
+                else:
+                    out = match_color(out, p["cmask"], *ref)
+                deltas.append(nv.color_adherence(out, p["cmask"], s["target"]))
+                full = nv.paste_back(full, out, p["box"], p["paste_mask"])
+            zoom = full.crop((max(0, ux0), max(0, uy0), min(full.width, ux1), min(full.height, uy1)))
             job["designs"].append(dict(
-                slot=i + 1, kind="palette", label=f"Nail {i+1}", style=style,
-                palette_hex=[nv.rgb_to_hex(c) for c in pal], prompt=prompt, seed=slot_seed,
-                delta_e=adh["mean_delta_e"], on_palette=adh["coverage"], seconds=time.time() - t,
-                full_jpeg_b64=jpeg_b64(photo), zoom_jpeg_b64=jpeg_b64(out)))
+                slot=s["slot"], kind=s["kind"], label=s["label"], style=s["style"],
+                palette_hex=[nv.rgb_to_hex(c) for c in s["palette"]], prompt=prompt, seed=slot_seed,
+                delta_e=sum(d["mean_delta_e"] for d in deltas) / len(deltas),
+                on_palette=sum(d["coverage"] for d in deltas) / len(deltas), seconds=time.time() - t,
+                full_jpeg_b64=jpeg_b64(full), zoom_jpeg_b64=jpeg_b64(zoom)))
         job["status"] = "done"
     except Exception as e:  # surfaced to the client via GET /jobs/{id}
         job["status"], job["error"] = "failed", f"{type(e).__name__}: {e}"
