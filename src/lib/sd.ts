@@ -1,4 +1,4 @@
-const API = import.meta.env.VITE_SD_URL ?? 'http://localhost:8000'
+const API = import.meta.env.VITE_SD_URL ?? 'https://nailvision.onrender.com'
 const TOKEN = import.meta.env.VITE_SD_TOKEN as string | undefined // not secret: ships in the bundle
 const headers: HeadersInit = TOKEN ? { 'X-API-Token': TOKEN } : {}
 
