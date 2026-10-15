@@ -1,0 +1,92 @@
+﻿@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/figtree';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #f6f7f9;
+  --foreground: #0f1722;
+  --card: #ffffff;
+  --card-foreground: #0f1722;
+  --popover: #ffffff;
+  --popover-foreground: #0f1722;
+  --primary: #2440e8;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f5;
+  --secondary-foreground: #1b2433;
+  --muted: #eceff4;
+  --muted-foreground: #596475;
+  --accent: #e8ecff;
+  --accent-foreground: #15204f;
+  --destructive: #c4122f;
+  --success: #0f7a4d;
+  --warning: #9a5b00;
+  --border: #e1e5ec;
+  --input: #d5dae3;
+  --ring: #2440e8;
+  --radius: 0.875rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0d121a;
+    --foreground: #e9edf3;
+    --card: #141a24;
+    --card-foreground: #e9edf3;
+    --popover: #141a24;
+    --popover-foreground: #e9edf3;
+    --primary: #8394ff;
+    --primary-foreground: #0a0f24;
+    --secondary: #1b2230;
+    --secondary-foreground: #dfe4ec;
+    --muted: #1b2230;
+    --muted-foreground: #9aa5b6;
+    --accent: #1c2542;
+    --accent-foreground: #d6dcff;
+    --destructive: #ff7a8c;
+    --success: #4fd08f;
+    --warning: #f0b45a;
+    --border: #252e3d;
+    --input: #303a4b;
+    --ring: #8394ff;
+  }
+}
+@theme inline {
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 3px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
