@@ -12,12 +12,62 @@ Upload a photo of your hand, pick up to three polish colors, and NailVision pain
 
 ## 📖 Table of contents
 
-1. [How to use NailVision](#-how-to-use-nailvision)
-2. [Quick start](#-quick-start)
-3. [Pages at a glance](#-pages-at-a-glance)
-4. [Settings explained](#-settings-explained)
-5. [Troubleshooting](#-troubleshooting)
-6. [Deploy](#-deploy)
+1. [Get the code (clone)](#-get-the-code-clone)
+2. [How to use NailVision](#-how-to-use-nailvision)
+3. [Quick start](#-quick-start)
+4. [Pages at a glance](#-pages-at-a-glance)
+5. [Settings explained](#-settings-explained)
+6. [Troubleshooting](#-troubleshooting)
+7. [Deploy](#-deploy)
+
+---
+
+## 📥 Get the code (clone)
+
+### 🧰 Before you start
+Install **Git** from <https://git-scm.com/downloads> and check it works:
+
+```sh
+git --version
+```
+
+### 📋 Clone it
+
+```sh
+git clone https://github.com/nikopolistico/NailVision.git
+cd NailVision
+```
+
+This creates a `NailVision` folder with the whole project. Then continue with the [Quick start](#-quick-start).
+
+### 🔄 Get the latest updates later
+Run this inside the `NailVision` folder:
+
+```sh
+git pull
+npm install
+```
+
+(`npm install` picks up any new packages.)
+
+### 📦 What you do **not** get from the clone
+These are too big or private, so they are not in the repository:
+
+| Missing | What to do |
+|---|---|
+| `node_modules/` | Run `npm install`. |
+| The Python environment (`.venv`) | Create it in [Quick start → Step 2](#-step-2--start-the-design-service). |
+| The Stable Diffusion model (~2 GB) | It downloads by itself the first time you generate a real design. |
+| Your `.env` file | Create one next to `package.json` with `VITE_SD_URL=http://localhost:8000`. |
+
+> 🔐 Never commit real passwords or tokens. Keep them in `.env`, not in the code.
+
+### 🍴 Want your own copy to change?
+Click **Fork** on GitHub first, then clone **your** fork's address instead:
+
+```sh
+git clone https://github.com/<your-username>/NailVision.git
+```
 
 ---
 
