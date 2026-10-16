@@ -6,51 +6,51 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #f6f7f9;
-  --foreground: #0f1722;
-  --card: #ffffff;
-  --card-foreground: #0f1722;
-  --popover: #ffffff;
-  --popover-foreground: #0f1722;
-  --primary: #2440e8;
+  --background: #fdf8f7;
+  --foreground: #0b1f55;
+  --card: #fffbfa;
+  --card-foreground: #0b1f55;
+  --popover: #fffbfa;
+  --popover-foreground: #0b1f55;
+  --primary: #b8305c;
   --primary-foreground: #ffffff;
-  --secondary: #eef0f5;
-  --secondary-foreground: #1b2433;
-  --muted: #eceff4;
-  --muted-foreground: #596475;
-  --accent: #e8ecff;
-  --accent-foreground: #15204f;
+  --secondary: #fbe6e3;
+  --secondary-foreground: #221e3a;
+  --muted: #fbeeed;
+  --muted-foreground: #5b566f;
+  --accent: #fdeaf0;
+  --accent-foreground: #0b1f55;
   --destructive: #c4122f;
   --success: #0f7a4d;
   --warning: #9a5b00;
-  --border: #e1e5ec;
-  --input: #d5dae3;
-  --ring: #2440e8;
+  --border: #f1dcd9;
+  --input: #e8cfcc;
+  --ring: #b8305c;
   --radius: 0.875rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0d121a;
-    --foreground: #e9edf3;
-    --card: #141a24;
-    --card-foreground: #e9edf3;
-    --popover: #141a24;
-    --popover-foreground: #e9edf3;
-    --primary: #8394ff;
-    --primary-foreground: #0a0f24;
-    --secondary: #1b2230;
-    --secondary-foreground: #dfe4ec;
-    --muted: #1b2230;
-    --muted-foreground: #9aa5b6;
-    --accent: #1c2542;
-    --accent-foreground: #d6dcff;
+    --background: #0e0c19;
+    --foreground: #ece9f6;
+    --card: #17142a;
+    --card-foreground: #ece9f6;
+    --popover: #17142a;
+    --popover-foreground: #ece9f6;
+    --primary: #f27b9d;
+    --primary-foreground: #35081a;
+    --secondary: #1f1b35;
+    --secondary-foreground: #e3dff0;
+    --muted: #1f1b35;
+    --muted-foreground: #a29cba;
+    --accent: #3a1830;
+    --accent-foreground: #ffd6e3;
     --destructive: #ff7a8c;
     --success: #4fd08f;
     --warning: #f0b45a;
-    --border: #252e3d;
-    --input: #303a4b;
-    --ring: #8394ff;
+    --border: #2b2644;
+    --input: #38325a;
+    --ring: #f27b9d;
   }
 }
 @theme inline {
@@ -76,6 +76,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --shadow-card: 0 1px 2px rgb(22 19 43 / 0.06), 0 8px 20px -8px rgb(22 19 43 / 0.14);
   --radius-sm: calc(var(--radius) - 6px);
   --radius-md: calc(var(--radius) - 3px);
   --radius-lg: var(--radius);
@@ -89,4 +90,50 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* pic1 reference photo as the page background, softened by a tint of the page colour (works in light and dark) */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--background);
+  background-position: center;
+  background-size: cover;
+  pointer-events: none;
+}
+.app-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--background) 35%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  .app-bg::after {
+    background: color-mix(in srgb, var(--background) 80%, transparent); /* the photo is white: dim it */
+  }
+}
+
+/* page change: quick fade with a small lift */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }

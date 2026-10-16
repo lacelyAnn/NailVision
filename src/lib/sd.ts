@@ -17,6 +17,7 @@ export interface Design {
 export interface Job {
   status: 'queued' | 'running' | 'done' | 'failed'
   designs: Design[]
+  progress: number // 0-100, of the design being painted
   error: string | null
 }
 
@@ -42,10 +43,16 @@ export async function getJob(id: string): Promise<Job> {
   return r.json()
 }
 
-export async function checkService(): Promise<boolean> {
+export interface Health {
+  mode: 'cuda' | 'mps' | 'cpu' | 'mock'
+  device?: string // older servers do not send it
+}
+
+export async function checkService(): Promise<Health | null> {
   try {
-    return (await fetch(`${API}/health`, { signal: AbortSignal.timeout(2500) })).ok
+    const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(2500) })
+    return r.ok ? await r.json() : null
   } catch {
-    return false
+    return null
   }
 }

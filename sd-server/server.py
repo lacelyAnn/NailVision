@@ -1,7 +1,7 @@
-"""NailVision offline SD service (CPU). Port of generate_five from the Colab notebook.
+"""NailVision offline SD service (GPU if available, else CPU). Port of generate_five from the Colab notebook.
 
 Run:  .venv\\Scripts\\python -m uvicorn server:app --port 8000
-Env:  MODEL_DIR (default ../gpu/sd15-inpainting), MOCK=1 (skip SD, returns the colour seed)
+Env:  DEVICE (cuda|mps|cpu, default: best available), MODEL_DIR (default ../gpu/sd15-inpainting), MOCK=1 (skip SD, returns the colour seed)
 """
 import base64
 import io
@@ -22,6 +22,9 @@ import nv_utils as nv
 
 MODEL_DIR = os.environ.get("MODEL_DIR", os.path.join(os.path.dirname(__file__), "..", "gpu", "sd15-inpainting"))
 MOCK = os.environ.get("MOCK") == "1"
+DEVICE = os.environ.get("DEVICE") or (
+    "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+DEVICE_NAME = torch.cuda.get_device_name(0) if DEVICE == "cuda" else DEVICE.upper()
 
 app = FastAPI()
 ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",")]  # e.g. https://nailvision.vercel.app
@@ -46,10 +49,11 @@ def get_pipe():
                                   allow_patterns=["*.json", "*.txt", "*.fp16.safetensors"])
 
             p = StableDiffusionInpaintPipeline.from_pretrained(
-                MODEL_DIR, variant="fp16", torch_dtype=torch.float32, safety_checker=None,
+                MODEL_DIR, variant="fp16", torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32, safety_checker=None,
                 requires_safety_checker=False,
             )
             p.scheduler = DPMSolverMultistepScheduler.from_config(p.scheduler.config, use_karras_sigmas=True)
+            p.to(DEVICE)
             p.set_progress_bar_config(disable=True)
             _pipe = p
         return _pipe
@@ -108,7 +112,11 @@ def run_job(job, photo, nail_masks, client_hex, seed, steps, strength, guidance)
             prompt = nv.build_prompt(s["style"], s["palette"], use_trigger=False)
             slot_seed = rng.randint(0, 2**31 - 1)
             full, deltas, ref = photo, [], None
-            for p in prep:  # same prompt, palette and seed on every nail = one design
+            job["progress"] = 0
+            for n, p in enumerate(prep):  # same prompt, palette and seed on every nail = one design
+                def on_step(pp, i, _t, kw, n=n):  # percent of this design, over all its nails
+                    job["progress"] = round(100 * (n + (i + 1) / pp.num_timesteps) / len(prep))
+                    return kw
                 seed_img = nv.make_palette_seed(p["crop"], p["inpaint_mask"], s["palette"],
                                                 random.Random(slot_seed),
                                                 layout=nv.STYLE_LAYOUT.get(s["style"]))
@@ -118,7 +126,9 @@ def run_job(job, photo, nail_masks, client_hex, seed, steps, strength, guidance)
                     g = torch.Generator("cpu").manual_seed(slot_seed)
                     out = pipe(prompt=prompt, negative_prompt=nv.NEGATIVE_PROMPT, image=seed_img,
                                mask_image=p["mask_img"], height=512, width=512, strength=strength,
-                               guidance_scale=guidance, num_inference_steps=steps, generator=g).images[0]
+                               guidance_scale=guidance, num_inference_steps=steps, generator=g,
+                               callback_on_step_end=on_step).images[0]
+                job["progress"] = round(100 * (n + 1) / len(prep))
                 if ref is None:
                     ref = (out, p["cmask"])  # first nail sets the colours for the rest
                 else:
@@ -147,7 +157,7 @@ async def token_guard(request, call_next):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "mode": "mock" if MOCK else "cpu", "model_dir": os.path.abspath(MODEL_DIR)}
+    return {"status": "ok", "mode": "mock" if MOCK else DEVICE, "device": DEVICE_NAME, "model_dir": os.path.abspath(MODEL_DIR)}
 
 
 @app.post("/jobs")
@@ -171,7 +181,7 @@ async def create_job(photo: UploadFile = File(...), masks: list[UploadFile] = Fi
         nails.append(nail)
     seed = random.randint(0, 2**31 - 1) if seed is None else seed
     jid = uuid.uuid4().hex[:12]
-    job = jobs[jid] = dict(status="queued", designs=[], seed=seed, error=None)
+    job = jobs[jid] = dict(status="queued", designs=[], seed=seed, error=None, progress=0)
     for old in list(jobs)[:-20]:
         jobs.pop(old, None)
     threading.Thread(target=run_job, args=(job, img, nails, hexes, seed, steps, strength, guidance), daemon=True).start()
