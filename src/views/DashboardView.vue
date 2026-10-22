@@ -44,10 +44,10 @@ const stats = computed(() => [
           </p>
           <div class="mt-4 flex flex-wrap gap-2">
             <Button as-child size="lg">
-              <RouterLink to="/studio"><Sparkles /> New design</RouterLink>
+              <RouterLink to="/client/studio"><Sparkles /> New design</RouterLink>
             </Button>
             <Button as-child size="lg" variant="outline">
-              <RouterLink to="/history"><Images /> Previous designs</RouterLink>
+              <RouterLink to="/client/history"><Images /> Previous designs</RouterLink>
             </Button>
           </div>
         </div>
@@ -71,7 +71,7 @@ const stats = computed(() => [
       <Card class="p-5">
         <div class="flex items-baseline justify-between">
           <h2 class="font-display text-base font-bold">Recent designs</h2>
-          <RouterLink to="/history" class="text-primary text-xs font-medium underline">
+          <RouterLink to="/client/history" class="text-primary text-xs font-medium underline">
             View all
           </RouterLink>
         </div>

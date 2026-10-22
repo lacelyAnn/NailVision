@@ -1,22 +1,54 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
-import { RefreshCw } from 'lucide-vue-next'
+import { computed, onMounted, ref, watch } from 'vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { RefreshCw, LogOut } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { service, deviceLabel, refreshService } from '@/lib/service'
+import { useAuth } from '@/stores/auth'
 import logo from '@/assets/logo.png'
 import bg from '@/assets/pic1.jpg'
 
-const nav = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/studio', label: 'Studio' },
-  { to: '/history', label: 'Previous designs' },
-]
+const auth = useAuth()
+const router = useRouter()
+const nav = computed(() =>
+  auth.profile?.role === 'technician'
+    ? [{ to: '/tech', label: 'Design reviews' }]
+    : auth.profile
+      ? [
+          { to: '/client', label: 'Dashboard' },
+          { to: '/client/studio', label: 'Studio' },
+          { to: '/client/history', label: 'Previous designs' },
+          { to: '/client/bookings', label: 'My bookings' },
+        ]
+      : [],
+)
+async function signOut() {
+  auth.busy = true
+  try {
+    await auth.signOut()
+    await router.replace('/login')
+  } finally {
+    auth.busy = false
+  }
+}
+
+// top bar: creeps toward 85% while busy, then fills and fades once the next page is shown
+const bar = ref<'idle' | 'run' | 'done'>('idle')
+let hide: ReturnType<typeof setTimeout>
+watch(
+  () => auth.busy,
+  (on) => {
+    clearTimeout(hide)
+    bar.value = on ? 'run' : 'done'
+    if (!on) hide = setTimeout(() => (bar.value = 'idle'), 500)
+  },
+)
 onMounted(refreshService)
 </script>
 
 <template>
   <div class="flex min-h-screen flex-col">
+    <div class="auth-bar" :class="bar" aria-hidden="true" />
     <div class="app-bg" aria-hidden="true" :style="{ backgroundImage: `url(${bg})` }" />
     <header class="bg-card sticky top-0 z-10 border-b">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2 sm:px-6">
@@ -48,7 +80,7 @@ onMounted(refreshService)
             :key="n.to"
             :to="n.to"
             class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px]"
-            active-class="!bg-accent !text-accent-foreground"
+            exact-active-class="!bg-accent !text-accent-foreground"
           >
             {{ n.label }}
           </RouterLink>
@@ -71,6 +103,14 @@ onMounted(refreshService)
           {{ service === 'online' ? 'ready' : service === 'offline' ? 'offline' : 'checking' }}
           <template v-if="deviceLabel">· {{ deviceLabel }}</template>
           <RefreshCw class="size-3" />
+        </button>
+        <button
+          v-if="auth.profile"
+          class="focus-visible:ring-ring/50 text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors outline-none focus-visible:ring-[3px]"
+          :title="`Signed in as ${auth.profile.full_name || auth.profile.role}`"
+          @click="signOut"
+        >
+          <LogOut class="size-3" /> Sign out
         </button>
       </div>
     </header>

@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
-import { ImagePlus, Sparkles, Loader, Download, Check, Pipette } from 'lucide-vue-next'
+import {
+  ImagePlus,
+  Sparkles,
+  Loader,
+  Download,
+  Check,
+  Pipette,
+  CalendarCheck,
+} from 'lucide-vue-next'
 import { detectNails, drawDetections, nailMaskBlob, type Detection } from '@/lib/detector'
 import { startJob, getJob, type Design } from '@/lib/sd'
 import { service, fast } from '@/lib/service'
-import { useDesigns } from '@/stores/designs'
+import { useDesigns, type SavedDesign } from '@/stores/designs'
 import StarRating from '@/components/StarRating.vue'
 import ImageViewer from '@/components/ImageViewer.vue'
+import BookDialog from '@/components/BookDialog.vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -14,6 +23,7 @@ import { Slider } from '@/components/ui/slider'
 
 const store = useDesigns()
 const view = ref<string | null>(null)
+const booking = ref<SavedDesign | null>(null)
 const jobId = ref('')
 const canvas = ref<HTMLCanvasElement>()
 const conf = ref([0.35])
@@ -426,9 +436,8 @@ onBeforeUnmount(() => clearInterval(timer))
       >
         Your five designs will appear here. Add a photo, then choose Generate 5 designs.
       </p>
-      <div
-        class="mt-5 grid grid-cols-[repeat(auto-fill,14rem)] justify-center gap-4 sm:justify-start"
-      >
+      <!-- one row of 5: cards shrink to fit, and the row scrolls sideways on narrow screens -->
+      <div class="mt-5 grid auto-cols-[minmax(11rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2">
         <Card
           v-for="d in designs"
           :key="d.slot"
@@ -436,14 +445,14 @@ onBeforeUnmount(() => clearInterval(timer))
         >
           <button
             type="button"
-            class="focus-visible:ring-ring/50 block cursor-zoom-in outline-none focus-visible:ring-[3px]"
+            class="focus-visible:ring-ring/50 block w-full cursor-zoom-in outline-none focus-visible:ring-[3px]"
             :aria-label="`View ${d.style} design full screen`"
             @click="view = `data:image/jpeg;base64,${d.full_jpeg_b64}`"
           >
             <img
               :src="`data:image/jpeg;base64,${d.zoom_jpeg_b64}`"
               :alt="`${d.style} design on nails ${selected.join(', ')}`"
-              class="bg-muted size-56 object-contain"
+              class="bg-muted aspect-square w-full object-contain"
             />
           </button>
           <div class="flex flex-col gap-2 p-3">
@@ -478,6 +487,9 @@ onBeforeUnmount(() => clearInterval(timer))
               :label="`Rate ${d.style} design`"
               @update:model-value="store.rate(`${jobId}-${d.slot}`, $event)"
             />
+            <Button size="sm" @click="booking = store.get(`${jobId}-${d.slot}`) ?? null">
+              <CalendarCheck /> Book at a salon
+            </Button>
           </div>
         </Card>
 
@@ -487,7 +499,7 @@ onBeforeUnmount(() => clearInterval(timer))
           class="overflow-hidden rounded-xl"
           aria-hidden="true"
         >
-          <div class="bg-muted relative size-56 animate-pulse">
+          <div class="bg-muted relative aspect-square w-full animate-pulse">
             <span v-if="k === 1" class="absolute inset-0 grid place-items-center text-lg font-bold">
               {{ progress }}%
             </span>
@@ -512,5 +524,6 @@ onBeforeUnmount(() => clearInterval(timer))
     </section>
 
     <ImageViewer :src="view" alt="Design in full screen" @close="view = null" />
+    <BookDialog :design="booking" @close="booking = null" />
   </div>
 </template>

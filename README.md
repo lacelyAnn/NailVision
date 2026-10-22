@@ -165,7 +165,22 @@ python -m uvicorn server:app --port 8000
 |---|---|
 | 🏠 **Dashboard** | Your overview: designs made, average rating, recent designs, how you rate designs, and service status. |
 | 🎨 **Studio** | Upload a photo, choose polishes, and generate designs. |
-| 🗂️ **Previous designs** | Every design you saved. Rate, filter (All / Rated / Unrated), view full screen, delete, and browse by page. |
+| 🗂️ **Previous designs** | Every design you saved. Rate, filter (All / Rated / Unrated), view full screen, delete, and browse by page. **Book at a salon** sends a design to a company. |
+| 📅 **My bookings** (client) | Designs you sent to a salon, their status, and the technician's rating and advice. |
+| 💼 **Design reviews** (technician) | Bookings for your company. Set the status, rate if the design is worth it, and leave advice. |
+
+Clients use pages under `#/client`, nail technicians under `#/tech`. Each account only sees its own area.
+
+### 🔐 Accounts (Supabase)
+
+1. Create a free project at <https://supabase.com>.
+2. Open **SQL Editor**, paste [`supabase/schema.sql`](supabase/schema.sql), and run it. It creates the tables and the security rules. Accounts live in the app's own `credentials` table (passwords stored as bcrypt hashes), so Supabase Auth, its emails and its rate limits are not used. [`supabase/reset.sql`](supabase/reset.sql) removes everything again.
+3. Copy **Project Settings → API** values into `.env`:
+   ```sh
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
+4. Sign up twice with a username and password: once as **Client**, once as **Nail technician** (type your salon's name and address). Each technician sign-up adds that salon to the list clients book from.
 
 ---
 
@@ -207,6 +222,22 @@ That is normal on a CPU. A GPU is much faster. You can also pick **Quick** quali
 
 **🙈 My saved designs disappeared**
 Designs are stored in your browser, and only the latest **30** are kept. Clearing the browser's site data removes them.
+
+---
+
+## 📱 Mobile app (Android)
+
+NailVision is wrapped with [Capacitor](https://capacitorjs.com). The Android project lives in `android/`.
+
+1. Install [Android Studio](https://developer.android.com/studio) (it brings the Android SDK and Java).
+2. Make sure `.env` points `VITE_SD_URL` at a public **https** design service. `localhost` on your PC is not reachable from the phone.
+3. Run:
+   ```sh
+   npm run android
+   ```
+   It builds the web app, copies it into `android/`, and opens Android Studio. Press ▶ Run to install on a phone or emulator.
+
+Run `npm run android` again after every code change. iOS needs a Mac (`npm i @capacitor/ios && npx cap add ios`).
 
 ---
 
