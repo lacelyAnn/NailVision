@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Trash2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { Trash2, ChevronLeft, ChevronRight, CalendarCheck } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import StarRating from '@/components/StarRating.vue'
 import ImageViewer from '@/components/ImageViewer.vue'
-import { useDesigns } from '@/stores/designs'
+import BookDialog from '@/components/BookDialog.vue'
+import { useDesigns, type SavedDesign } from '@/stores/designs'
 
 const store = useDesigns()
 const filters = ['All', 'Rated', 'Unrated'] as const
@@ -14,6 +15,7 @@ const filter = ref<(typeof filters)[number]>('All')
 const PAGE = 8
 const page = ref(1)
 const view = ref<string | null>(null)
+const booking = ref<SavedDesign | null>(null)
 const filtered = computed(() =>
   store.items.filter((x) => filter.value === 'All' || (filter.value === 'Rated') === x.rating > 0),
 )
@@ -65,7 +67,7 @@ const clearAll = () => confirm('Delete all saved designs? This cannot be undone.
       class="text-muted-foreground bg-card/90 rounded-2xl border-2 border-dashed p-10 text-center text-sm"
     >
       <p>No saved designs yet.</p>
-      <RouterLink to="/studio" class="text-primary mt-2 inline-block font-medium underline">
+      <RouterLink to="/client/studio" class="text-primary mt-2 inline-block font-medium underline">
         Make your first design
       </RouterLink>
     </div>
@@ -121,6 +123,7 @@ const clearAll = () => confirm('Delete all saved designs? This cannot be undone.
             :label="`Rate ${d.style} design`"
             @update:model-value="store.rate(d.id, $event)"
           />
+          <Button size="sm" @click="booking = d"><CalendarCheck /> Book at a salon</Button>
         </div>
       </Card>
     </div>
@@ -159,5 +162,6 @@ const clearAll = () => confirm('Delete all saved designs? This cannot be undone.
     </p>
 
     <ImageViewer :src="view" alt="Design in full screen" @close="view = null" />
+    <BookDialog :design="booking" @close="booking = null" />
   </div>
 </template>

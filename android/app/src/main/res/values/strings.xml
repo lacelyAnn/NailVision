@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NailVision</string>
+    <string name="title_activity_main">NailVision</string>
+    <string name="package_name">com.nailvision.app</string>
+    <string name="custom_url_scheme">com.nailvision.app</string>
+</resources>

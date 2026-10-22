@@ -118,22 +118,57 @@
 }
 @media (prefers-color-scheme: dark) {
   .app-bg::after {
-    background: color-mix(in srgb, var(--background) 80%, transparent); /* the photo is white: dim it */
+    background: color-mix(
+      in srgb,
+      var(--background) 80%,
+      transparent
+    ); /* the photo is white: dim it */
   }
 }
 
-/* page change: quick fade with a small lift */
-.page-enter-active,
+/* page change: the old page slips away fast, the new one settles in with a soft ease-out */
+.page-enter-active {
+  transition:
+    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
 .page-leave-active {
   transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
+    opacity 0.15s ease-in,
+    transform 0.15s ease-in;
 }
 .page-enter-from {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(12px) scale(0.995);
 }
 .page-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+
+/* sign-in / sign-out progress, see App.vue */
+.auth-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  height: 3px;
+  width: 0;
+  opacity: 0;
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+  border-radius: 0 999px 999px 0;
+  pointer-events: none;
+}
+.auth-bar.run {
+  width: 85%;
+  opacity: 1;
+  transition: width 3s cubic-bezier(0.1, 0.6, 0.3, 1);
+}
+.auth-bar.done {
+  width: 100%;
+  opacity: 0;
+  transition:
+    width 0.2s ease-out,
+    opacity 0.3s ease 0.15s;
 }
