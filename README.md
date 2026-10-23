@@ -125,10 +125,13 @@ npm run dev
 
 Open the address it prints (usually <http://localhost:5173>).
 
-> The app talks to the design service at `VITE_SD_URL`. For local use create a `.env` file with:
+> The app talks to the design service at
+> For local use create a `.env` file with:
 > `VITE_SD_URL=http://localhost:8000`
+> `VITE_SUPABASE_URL: = `
+> `VITE_SUPABASE_ANON_KEY: = ` 
 
-### 🎨 Step 2 · Start the design service
+> ### 🎨 Step 2 · Start the design service
 
 Open a **second terminal**:
 
