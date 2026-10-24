@@ -6,7 +6,15 @@ Upload a photo of your hand, pick up to three polish colors, and NailVision pain
 | | |
 |---|---|
 | 🖼️ **Frontend** | Vue 3 + Vite. Finds your nails right in the browser. |
-| 🎨 **Design service** | A Python Stable Diffusion server (`sd-server/`) that paints the designs. It uses your **GPU** when there is one, otherwise your **CPU**. |
+| 🎨 **Design service** | A Python FastAPI server (`backend/`) that paints the designs with Stable Diffusion inpainting on Cloudflare Workers AI (or a local model). |
+
+```
+NailVision/
+├── frontend/   Vue + Vite app, Capacitor Android project (frontend/android)
+├── backend/    FastAPI design service, Dockerfile, tests, local model in backend/models (not in git)
+├── supabase/   database schema
+└── README.md
+```
 
 ---
 
@@ -45,6 +53,7 @@ Run this inside the `NailVision` folder:
 
 ```sh
 git pull
+cd frontend
 npm install
 ```
 
@@ -55,10 +64,10 @@ These are too big or private, so they are not in the repository:
 
 | Missing | What to do |
 |---|---|
-| `node_modules/` | Run `npm install`. |
-| The Python environment (`.venv`) | Create it in [Quick start → Step 2](#-step-2--start-the-design-service). |
-| The Stable Diffusion model (~2 GB) | It downloads by itself the first time you generate a real design. |
-| Your `.env` file | Create one next to `package.json` with `VITE_SD_URL=http://localhost:8000`. |
+| `frontend/node_modules/` | Run `npm install` in `frontend/`. |
+| The Python environment (`backend/.venv`) | Create it in [Quick start → Step 2](#-step-2--start-the-design-service). |
+| The local Stable Diffusion model (~2 GB) | Only for `GEN_BACKEND=local`. It downloads into `backend/models/` the first time it is used. |
+| Your `.env` file | Create `frontend/.env` with `VITE_SD_URL=http://localhost:8000`. |
 
 > 🔐 Never commit real passwords or tokens. Keep them in `.env`, not in the code.
 
@@ -119,6 +128,7 @@ The first three designs use your colors. The other two are suggestions picked fo
 ### 🖥️ Step 1 · Start the app
 
 ```sh
+cd frontend
 npm install
 npm run dev
 ```
@@ -126,7 +136,7 @@ npm run dev
 Open the address it prints (usually <http://localhost:5173>).
 
 > The app talks to the design service at
-> For local use create a `.env` file with:
+> For local use create a `frontend/.env` file with:
 > `VITE_SD_URL=http://localhost:8000`
 > `VITE_SUPABASE_URL: = `
 > `VITE_SUPABASE_ANON_KEY: = ` 
@@ -136,19 +146,44 @@ Open the address it prints (usually <http://localhost:5173>).
 Open a **second terminal**:
 
 ```powershell
-cd sd-server
+cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 python -m uvicorn server:app --port 8000
 ```
+
+> 🧠 That is enough for Cloudflare (the default). For the local Stable Diffusion model (`GEN_BACKEND=local` or `GEN_FALLBACK_LOCAL=true`) also run
+> `pip install torch --index-url https://download.pytorch.org/whl/cpu` and `pip install -r requirements-local.txt`.
 
 > 🍎🐧 On macOS or Linux use `source .venv/bin/activate` instead of the `Activate.ps1` line.
 >
 > ⚡ Have an NVIDIA GPU? Install the CUDA build of PyTorch from <https://pytorch.org> instead of the CPU one. The server picks the GPU by itself.
 
 ✅ **Check it works:** open <http://localhost:8000/health>. The top bar of the app should say **Design service ready** and show **GPU** or **CPU**.
+
+### ☁️ Paint on Cloudflare Workers AI (default)
+By default the server sends each nail to Cloudflare's `@cf/runwayml/stable-diffusion-v1-5-inpainting` model instead of running Stable Diffusion itself. That is fast even on a small server.
+
+1. In the Cloudflare dashboard, copy your **Account ID** (Workers & Pages → right side).
+2. Create an API token: **My Profile → API Tokens → Create Token → Workers AI** template.
+3. Put them in `backend/.env.local` (copy `backend/.env.example`); the server reads it on start. Or set them in PowerShell (on Render: the Environment tab):
+   ```powershell
+   $env:CF_ACCOUNT_ID = "your-account-id"
+   $env:CF_API_TOKEN  = "your-token"
+   $env:GEN_FALLBACK_LOCAL = "true"   # optional: paint locally if Cloudflare fails
+   ```
+4. Check it with one real request. It saves `smoke_out.png`:
+   ```powershell
+   cd backend
+   python -m scripts.smoke_cloudflare
+   ```
+
+To use only the local model, set `$env:GEN_BACKEND = "local"`. Cloudflare always uses 20 steps, so the **Design quality** choice only affects the local model.
+
+Each design in `GET /jobs/{id}` records `backend` (`cloudflare`, `local` or `mock`), `seed`, `prompt`, `latency_ms` (time spent in the model), `delta_e` and `on_palette`.
+
+Unit tests: `cd backend` then `python -m unittest discover tests`.
 
 ### 🧪 Just want to try it quickly? Use test mode
 Test mode skips Stable Diffusion and returns fast placeholder designs.
@@ -178,7 +213,7 @@ Clients use pages under `#/client`, nail technicians under `#/tech`. Each accoun
 
 1. Create a free project at <https://supabase.com>.
 2. Open **SQL Editor**, paste [`supabase/schema.sql`](supabase/schema.sql), and run it. It creates the tables and the security rules. Accounts live in the app's own `credentials` table (passwords stored as bcrypt hashes), so Supabase Auth, its emails and its rate limits are not used. [`supabase/reset.sql`](supabase/reset.sql) removes everything again.
-3. Copy **Project Settings → API** values into `.env`:
+3. Copy **Project Settings → API** values into `frontend/.env`:
    ```sh
    VITE_SUPABASE_URL=https://your-project.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-key
@@ -191,14 +226,17 @@ Clients use pages under `#/client`, nail technicians under `#/tech`. Each accoun
 
 | Setting | Where | What it does |
 |---|---|---|
-| `VITE_SD_URL` | `.env` | Address of the design service. |
-| `VITE_SD_TOKEN` | `.env` | Optional password. Must match `API_TOKEN` on the server. |
+| `VITE_SD_URL` | `frontend/.env` | Address of the design service. |
+| `VITE_SD_TOKEN` | `frontend/.env` | Optional password. Must match `API_TOKEN` on the server. |
+| `GEN_BACKEND` | server | `cloudflare` (default) paints on Cloudflare Workers AI. `local` uses Stable Diffusion on the server itself. |
+| `GEN_FALLBACK_LOCAL` | server | `true` = if Cloudflare fails for a design, paint that design locally instead. |
+| `CF_ACCOUNT_ID`, `CF_API_TOKEN` | server | Cloudflare login for Workers AI. Keep them on the server only, never in `.env` of the app. |
 | `MOCK=1` | server | Test mode, no Stable Diffusion. |
 | `DEVICE` | server | Force `cuda`, `mps` or `cpu`. Normally leave it empty. |
 | `MODEL_DIR` | server | Where the model is stored. |
 | `ALLOWED_ORIGINS` | server | Websites allowed to use the server (comma separated). |
 
-More examples are in `.env.example` and `sd-server/.env.example`.
+More examples are in `frontend/.env.example` and `backend/.env.example`.
 
 ---
 
@@ -230,15 +268,16 @@ Designs are stored in your browser, and only the latest **30** are kept. Clearin
 
 ## 📱 Mobile app (Android)
 
-NailVision is wrapped with [Capacitor](https://capacitorjs.com). The Android project lives in `android/`.
+NailVision is wrapped with [Capacitor](https://capacitorjs.com). The Android project lives in `frontend/android/`.
 
 1. Install [Android Studio](https://developer.android.com/studio) (it brings the Android SDK and Java).
-2. Make sure `.env` points `VITE_SD_URL` at a public **https** design service. `localhost` on your PC is not reachable from the phone.
+2. Make sure `frontend/.env` points `VITE_SD_URL` at a public **https** design service. `localhost` on your PC is not reachable from the phone.
 3. Run:
    ```sh
+   cd frontend
    npm run android
    ```
-   It builds the web app, copies it into `android/`, and opens Android Studio. Press ▶ Run to install on a phone or emulator.
+   It builds the web app, copies it into `frontend/android/`, and opens Android Studio. Press ▶ Run to install on a phone or emulator.
 
 Run `npm run android` again after every code change. iOS needs a Mac (`npm i @capacitor/ios && npx cap add ios`).
 
@@ -246,10 +285,10 @@ Run `npm run android` again after every code change. iOS needs a Mac (`npm i @ca
 
 ## ☁️ Deploy
 
-- 🐳 **Design service → Render:** a Docker service from `sd-server/` (see its `Dockerfile`). Mount a persistent disk at `/models`, or the model downloads again on every restart. Environment variables: see `sd-server/.env.example`.
-- ▲ **Frontend → Vercel:** set `VITE_SD_URL` to your Render address, and optionally `VITE_SD_TOKEN`. On Render, set `ALLOWED_ORIGINS` to your Vercel address.
+- 🐳 **Design service → Render (free plan works):** New → Web Service → connect the GitHub repo → **Root Directory** `backend`, **Language** Docker. The image has no torch, so it fits the free 512 MB. Environment variables: `CF_ACCOUNT_ID`, `CF_API_TOKEN`, `ALLOWED_ORIGINS` (see `backend/.env.example`). Leave `GEN_FALLBACK_LOCAL` unset there.
+- ▲ **Frontend → Vercel:** set **Root Directory** to `frontend`, then set `VITE_SD_URL` to your Render address, and optionally `VITE_SD_TOKEN`. On Render, set `ALLOWED_ORIGINS` to your Vercel address.
 
-> ⏱️ A CPU on Render is slow by design. The app keeps checking the job until the designs are ready.
+> ⏱️ A free Render service sleeps after 15 minutes without visits. The first request then takes about a minute to wake it up.
 
 ---
 

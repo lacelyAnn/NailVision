@@ -259,18 +259,18 @@ def crop_to(img, mask, box, size=512):
 
 
 def paste_back(original, generated_crop, box, mask_full, feather=3):
-    """Paste the generated crop into the original photo, only inside the (feathered) nail mask."""
-    orig = original.convert("RGB")
-    bw, bh = box[2] - box[0], box[3] - box[1]
-    gen = generated_crop.convert("RGB").resize((bw, bh), Image.LANCZOS)
-    canvas = orig.copy()
-    canvas.paste(gen, box[:2])
-    alpha = np.asarray(mask_full, bool).astype(np.float32)
+    """Paste the generated crop into the original photo, only inside the (feathered) nail mask.
+    Only the box is blended (outside it the photo is unchanged), so memory stays small for big photos."""
+    out = original.convert("RGB")  # a copy
+    x0, y0, x1, y1 = box
+    gen = generated_crop.convert("RGB").resize((x1 - x0, y1 - y0), Image.LANCZOS)
+    alpha = np.asarray(mask_full, bool)[y0:y1, x0:x1].astype(np.float32)
     if feather > 0:
         alpha = cv2.GaussianBlur(alpha, (0, 0), sigmaX=feather)
     alpha = alpha[..., None]
-    out = np.asarray(canvas, np.float32) * alpha + np.asarray(orig, np.float32) * (1 - alpha)
-    return Image.fromarray(out.round().clip(0, 255).astype(np.uint8))
+    region = np.asarray(gen, np.float32) * alpha + np.asarray(out.crop(box), np.float32) * (1 - alpha)
+    out.paste(Image.fromarray(region.round().clip(0, 255).astype(np.uint8)), (x0, y0))
+    return out
 
 
 # ============================================================

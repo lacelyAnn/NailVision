@@ -9,7 +9,7 @@ import {
   Pipette,
   CalendarCheck,
 } from 'lucide-vue-next'
-import { detectNails, drawDetections, nailMaskBlob, type Detection } from '@/lib/detector'
+import { detectNails, drawDetections, nailMaskBlob, photoBlob, type Detection } from '@/lib/detector'
 import { startJob, getJob, type Design } from '@/lib/sd'
 import { service, fast } from '@/lib/service'
 import { useDesigns, type SavedDesign } from '@/stores/designs'
@@ -35,7 +35,6 @@ const hasPhoto = ref(false)
 const photoName = ref('')
 const photoUrl = ref('')
 let img: HTMLImageElement | null = null
-let file: File | null = null
 
 const colors = ref(['#C37F92', '#4D4E6E', '#F2B5B0']) // mauve, slate, blush from the logo swatches
 const steps = ref([30]) // diffusion steps, picked through the friendly presets below
@@ -89,7 +88,6 @@ function onFile(e: Event) {
   const input = e.target as HTMLInputElement
   const f = input.files?.[0]
   if (!f) return
-  file = f
   photoName.value = f.name
   const i = new Image()
   i.onload = async () => {
@@ -106,7 +104,7 @@ function onFile(e: Event) {
 async function generate() {
   const d = det.value
   const nails = d ? d.nails.filter((x) => selected.value.includes(x.number)) : []
-  if (!nails.length || !img || !file || !d) return
+  if (!nails.length || !img || !d) return
   clearInterval(timer)
   error.value = ''
   designs.value = []
@@ -116,7 +114,7 @@ async function generate() {
   genStatus.value = 'Sending the nails to the design service'
   try {
     const id = await startJob(
-      file,
+      await photoBlob(img!),
       await Promise.all(nails.map((n) => nailMaskBlob(img!, d, n))),
       colors.value,
       steps.value[0] ?? 30,

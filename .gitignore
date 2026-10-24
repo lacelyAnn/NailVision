@@ -38,9 +38,8 @@ __screenshots__/
 # Vite
 *.timestamp-*-*.mjs
 
-gpu/.venv/
-gpu/sd15-inpainting/
-sd-server/.venv/
+backend/.venv/
+backend/models/
 .env
 .env.local
 .env.*.local
