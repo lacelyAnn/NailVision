@@ -44,7 +44,7 @@ export async function getJob(id: string): Promise<Job> {
 }
 
 export interface Health {
-  mode: 'cuda' | 'mps' | 'cpu' | 'mock'
+  mode: 'cloudflare' | 'cuda' | 'mps' | 'cpu' | 'mock'
   device?: string // older servers do not send it
 }
 

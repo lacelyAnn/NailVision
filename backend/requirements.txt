@@ -1,13 +1,10 @@
-﻿accelerate==1.15.0
-diffusers==0.41.0
 fastapi==0.143.1
-huggingface_hub==1.33.0
+httpx==0.28.1
 numpy==2.5.4
 opencv-python-headless==5.0.0.93
 pillow==12.3.0
+python-dotenv==1.2.4
 python-multipart==0.0.32
-safetensors==0.8.0
 scikit-image==0.26.0
 scikit-learn==1.9.1
-transformers==5.19.0
 uvicorn==0.54.0

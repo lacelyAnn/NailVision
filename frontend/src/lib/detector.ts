@@ -166,14 +166,32 @@ export function drawDetections(
 }
 
 /** Full-resolution binary PNG mask of one nail (white = nail), for the SD service. */
+// uploads are capped at the size the server works at: smaller transfer, and full-size photos overflow its memory
+const MAX_SIDE = 2048
+const uploadScale = (img: HTMLImageElement) =>
+  Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight))
+
+export function photoBlob(img: HTMLImageElement): Promise<Blob> {
+  const s = uploadScale(img)
+  const c = document.createElement('canvas')
+  c.width = Math.round(img.naturalWidth * s)
+  c.height = Math.round(img.naturalHeight * s)
+  c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
+  return new Promise((res, rej) =>
+    c.toBlob((b) => (b ? res(b) : rej(new Error('photo export failed'))), 'image/jpeg', 0.92),
+  )
+}
+
 export function nailMaskBlob(img: HTMLImageElement, d: Detection, n: Nail): Promise<Blob> {
-  const W = img.naturalWidth,
-    H = img.naturalHeight
+  const s = uploadScale(img)
+  const W = Math.round(img.naturalWidth * s),
+    H = Math.round(img.naturalHeight * s)
   const c = document.createElement('canvas')
   c.width = W
   c.height = H
   const ctx = c.getContext('2d', { willReadFrequently: true })!
   ctx.imageSmoothingQuality = 'high'
+  ctx.scale(s, s) // same placement as the photo, just smaller
   ctx.drawImage(n.mask, -d.padX / d.r, -d.padY / d.r, SIZE / d.r, SIZE / d.r)
   const id = ctx.getImageData(0, 0, W, H)
   for (let i = 0; i < W * H; i++) {

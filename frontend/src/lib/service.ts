@@ -3,7 +3,7 @@ import { checkService, type Health } from '@/lib/sd'
 
 export const service = ref<'checking' | 'online' | 'offline'>('checking')
 export const health = ref<Health | null>(null)
-export const fast = computed(() => health.value?.mode === 'cuda' || health.value?.mode === 'mps')
+export const fast = computed(() => ['cloudflare', 'cuda', 'mps'].includes(health.value?.mode ?? ''))
 export const deviceLabel = computed(() => {
   const h = health.value
   if (!h) return ''

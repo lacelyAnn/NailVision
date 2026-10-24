@@ -1,0 +1,8 @@
+# Local SD 1.5 pipeline (GEN_BACKEND=local or GEN_FALLBACK_LOCAL=true). Not used on Render.
+# Install torch first: pip install torch --index-url https://download.pytorch.org/whl/cpu  (or the CUDA build)
+-r requirements.txt
+accelerate==1.15.0
+diffusers==0.41.0
+huggingface_hub==1.33.0
+safetensors==0.8.0
+transformers==5.19.0
