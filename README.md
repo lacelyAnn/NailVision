@@ -292,4 +292,4 @@ Run `npm run android` again after every code change. iOS needs a Mac (`npm i @ca
 
 ---
 
-Made with 💖 for nail lovers. Questions or ideas? Open an issue.
+Made with 💖 for nail lovers. Questions or ideas?
