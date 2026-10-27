@@ -172,3 +172,66 @@
     width 0.2s ease-out,
     opacity 0.3s ease 0.15s;
 }
+
+/* sign-in overlay, see App.vue */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* nail scan: a line sweeps over the photo while nails are detected, see StudioView.vue */
+.scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+  box-shadow: 0 0 12px 2px var(--primary);
+  animation: scan 1.8s ease-in-out infinite alternate;
+}
+.scan-line::after {
+  content: '';
+  position: absolute;
+  inset: -48px 0 2px;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--primary) 25%, transparent),
+    transparent
+  );
+}
+@keyframes scan {
+  from {
+    top: 0;
+  }
+  to {
+    top: 100%;
+  }
+}
+/* corner brackets framing the hand in the live camera view */
+.scan-frame {
+  position: absolute;
+  inset: 10%;
+  --c: var(--primary);
+  background:
+    linear-gradient(var(--c) 0 0) top left / 32px 3px,
+    linear-gradient(var(--c) 0 0) top left / 3px 32px,
+    linear-gradient(var(--c) 0 0) top right / 32px 3px,
+    linear-gradient(var(--c) 0 0) top right / 3px 32px,
+    linear-gradient(var(--c) 0 0) bottom left / 32px 3px,
+    linear-gradient(var(--c) 0 0) bottom left / 3px 32px,
+    linear-gradient(var(--c) 0 0) bottom right / 32px 3px,
+    linear-gradient(var(--c) 0 0) bottom right / 3px 32px;
+  background-repeat: no-repeat;
+  border-radius: 12px;
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-line {
+    animation: none;
+    top: 50%;
+  }
+}

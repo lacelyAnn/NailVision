@@ -39,14 +39,15 @@ const iou = (a: Box, b: Box) => {
   return i / ((a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - i)
 }
 
+// a canvas is accepted too, for live camera frames
 export async function detectNails(
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement,
   conf = 0.35,
   iouThr = 0.5,
 ): Promise<Detection> {
   const t0 = performance.now()
-  const W = img.naturalWidth
-  const H = img.naturalHeight
+  const W = img instanceof HTMLImageElement ? img.naturalWidth : img.width
+  const H = img instanceof HTMLImageElement ? img.naturalHeight : img.height
   const r = Math.min(SIZE / W, SIZE / H)
   const padX = (SIZE - W * r) / 2
   const padY = (SIZE - H * r) / 2
@@ -133,18 +134,20 @@ export async function detectNails(
   return { nails, ms: performance.now() - t0, r, padX, padY }
 }
 
+// withPhoto false draws only the overlay, for a transparent canvas over the live camera
 export function drawDetections(
   canvas: HTMLCanvasElement,
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement,
   d: Detection,
   selected: number[],
+  withPhoto = true,
 ) {
-  const W = img.naturalWidth,
-    H = img.naturalHeight
+  const W = img instanceof HTMLImageElement ? img.naturalWidth : img.width,
+    H = img instanceof HTMLImageElement ? img.naturalHeight : img.height
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')!
-  ctx.drawImage(img, 0, 0)
+  if (withPhoto) ctx.drawImage(img, 0, 0)
   const th = Math.max(2, Math.round(Math.min(W, H) / 250))
   for (const n of d.nails) {
     ctx.drawImage(n.mask, -d.padX / d.r, -d.padY / d.r, SIZE / d.r, SIZE / d.r)
