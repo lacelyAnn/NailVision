@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { RefreshCw, LogOut, Loader } from 'lucide-vue-next'
+import {
+  RefreshCw,
+  LogOut,
+  Loader,
+  LayoutDashboard,
+  Sparkles,
+  Images,
+  CalendarCheck,
+  ClipboardCheck,
+} from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { service, deviceLabel, refreshService } from '@/lib/service'
 import { useAuth } from '@/stores/auth'
@@ -12,16 +21,17 @@ const auth = useAuth()
 const router = useRouter()
 const nav = computed(() =>
   auth.profile?.role === 'technician'
-    ? [{ to: '/tech', label: 'Design reviews' }]
+    ? [{ to: '/tech', label: 'Design reviews', short: 'Reviews', icon: ClipboardCheck }]
     : auth.profile
       ? [
-          { to: '/client', label: 'Dashboard' },
-          { to: '/client/studio', label: 'Studio' },
-          { to: '/client/history', label: 'Previous designs' },
-          { to: '/client/bookings', label: 'My bookings' },
+          { to: '/client', label: 'Dashboard', short: 'Home', icon: LayoutDashboard },
+          { to: '/client/studio', label: 'Studio', short: 'Studio', icon: Sparkles },
+          { to: '/client/history', label: 'Previous designs', short: 'Designs', icon: Images },
+          { to: '/client/bookings', label: 'My bookings', short: 'Bookings', icon: CalendarCheck },
         ]
       : [],
 )
+const tabBar = computed(() => nav.value.length > 1) // one destination needs no tab bar
 async function signOut() {
   auth.busy = true
   try {
@@ -49,7 +59,10 @@ onMounted(refreshService)
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col">
+  <div
+    class="flex min-h-screen flex-col lg:pb-0"
+    :class="tabBar && 'pb-[calc(4rem+env(safe-area-inset-bottom))]'"
+  >
     <div class="auth-bar" :class="bar" aria-hidden="true" />
     <Transition name="fade">
       <div
@@ -77,8 +90,10 @@ onMounted(refreshService)
       </div>
     </Transition>
     <div class="app-bg" aria-hidden="true" :style="{ backgroundImage: `url(${bg})` }" />
-    <header class="bg-card sticky top-0 z-10 border-b">
-      <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2 sm:px-6">
+    <header class="bg-card/90 sticky top-0 z-20 border-b pt-[env(safe-area-inset-top)] backdrop-blur">
+      <div
+        class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:grid lg:h-16 lg:grid-cols-[1fr_auto_1fr]"
+      >
         <RouterLink
           to="/"
           aria-label="NailVision home"
@@ -98,49 +113,75 @@ onMounted(refreshService)
           >
         </RouterLink>
 
-        <nav
-          class="order-3 -mx-1 flex w-full gap-1 overflow-x-auto sm:order-none sm:mx-0 sm:w-auto"
-          aria-label="Main"
-        >
+        <!-- desktop tabs: centred column; the active one gets a nail-tip marker on the header rule -->
+        <nav class="hidden h-full items-stretch gap-1 lg:flex" aria-label="Main">
           <RouterLink
             v-for="n in nav"
             :key="n.to"
             :to="n.to"
-            class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px]"
-            exact-active-class="!bg-accent !text-accent-foreground"
+            class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 aria-[current=page]:text-foreground after:bg-primary relative flex items-center px-3 text-sm font-medium whitespace-nowrap transition-colors outline-none after:absolute after:inset-x-3 after:-bottom-px after:h-[5px] after:origin-bottom after:scale-y-0 after:rounded-t-full after:transition-transform focus-visible:rounded-lg focus-visible:ring-[3px] focus-visible:ring-inset aria-[current=page]:after:scale-y-100 motion-reduce:after:transition-none"
           >
             {{ n.label }}
           </RouterLink>
         </nav>
 
-        <button
-          class="focus-visible:ring-ring/50 text-muted-foreground hover:text-foreground ml-auto flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors outline-none focus-visible:ring-[3px]"
-          title="Recheck the design service"
-          @click="refreshService"
-        >
-          <span
-            class="size-2 rounded-full"
-            :class="{
-              'bg-success': service === 'online',
-              'bg-destructive': service === 'offline',
-              'bg-muted-foreground animate-pulse': service === 'checking',
-            }"
-          />
-          Design service
-          {{ service === 'online' ? 'ready' : service === 'offline' ? 'offline' : 'checking' }}
-          <template v-if="deviceLabel">· {{ deviceLabel }}</template>
-          <RefreshCw class="size-3" />
-        </button>
-        <button
-          v-if="auth.profile"
-          class="focus-visible:ring-ring/50 text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors outline-none focus-visible:ring-[3px]"
-          :title="`Signed in as ${auth.profile.full_name || auth.profile.role}`"
-          @click="signOut"
-        >
-          <LogOut class="size-3" /> Sign out
-        </button>
+        <div class="flex items-center justify-end gap-2">
+          <button
+            class="focus-visible:ring-ring/50 text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] sm:px-3"
+            :title="`Design service ${service}. Click to recheck.`"
+            :aria-label="`Design service ${service}. Recheck`"
+            @click="refreshService"
+          >
+            <span
+              class="size-2 rounded-full"
+              :class="{
+                'bg-success': service === 'online',
+                'bg-destructive': service === 'offline',
+                'bg-muted-foreground animate-pulse': service === 'checking',
+              }"
+            />
+            <span class="hidden sm:inline">
+              {{ service === 'online' ? 'Ready' : service === 'offline' ? 'Offline' : 'Checking' }}
+              <span v-if="deviceLabel" class="hidden xl:inline">· {{ deviceLabel }}</span>
+            </span>
+            <RefreshCw class="hidden size-3 sm:block" />
+          </button>
+          <button
+            v-if="auth.profile"
+            class="focus-visible:ring-ring/50 text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 rounded-full border p-2 text-xs font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] sm:px-3 sm:py-1.5"
+            :title="`Signed in as ${auth.profile.full_name || auth.profile.role}`"
+            aria-label="Sign out"
+            @click="signOut"
+          >
+            <LogOut class="size-3.5 sm:size-3" />
+            <span class="hidden sm:inline">Sign out</span>
+          </button>
+        </div>
       </div>
     </header>
+
+    <!-- phone tabs: bottom bar within thumb reach, clear of the gesture area -->
+    <nav
+      v-if="tabBar"
+      class="bg-card/95 fixed inset-x-0 bottom-0 z-20 border-t pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+      aria-label="Main"
+    >
+      <div class="mx-auto grid h-16 max-w-md grid-flow-col auto-cols-fr">
+        <RouterLink
+          v-for="n in nav"
+          :key="n.to"
+          :to="n.to"
+          class="group text-muted-foreground aria-[current=page]:text-foreground focus-visible:ring-ring/50 flex flex-col items-center justify-center gap-1 text-[11px] font-medium outline-none focus-visible:rounded-lg focus-visible:ring-[3px] focus-visible:ring-inset"
+        >
+          <span
+            class="group-aria-[current=page]:bg-accent group-aria-[current=page]:text-primary grid h-7 w-14 place-items-center rounded-[999px_999px_10px_10px] transition-colors"
+          >
+            <component :is="n.icon" class="size-[18px]" aria-hidden="true" />
+          </span>
+          {{ n.short }}
+        </RouterLink>
+      </div>
+    </nav>
 
     <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8 pb-20 sm:px-6">
       <!-- KeepAlive: a running generation keeps going while you visit other pages -->

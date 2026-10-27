@@ -48,7 +48,6 @@ log = logging.getLogger("nailvision")
 app = FastAPI()
 ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",")]  # e.g. https://nailvision.vercel.app
 API_TOKEN = os.environ.get("API_TOKEN")  # optional; visible to anyone holding the frontend bundle
-app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 _pipe = None
 _pipe_lock = threading.Lock()
@@ -259,6 +258,10 @@ async def token_guard(request, call_next):
     if API_TOKEN and not open_path and request.headers.get("x-api-token") != API_TOKEN:
         return JSONResponse({"detail": "Unauthorized"}, status_code=401)
     return await call_next(request)
+
+
+# added after token_guard so CORS wraps it: a 401 must reach the browser as 401, not "Failed to fetch"
+app.add_middleware(CORSMiddleware, allow_origins=ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 
 @app.get("/health")

@@ -42,12 +42,16 @@ const stats = computed(() => [
           <p class="text-muted-foreground mt-2 max-w-md text-sm leading-relaxed">
             Capture your hand, choose your polishes, and get five designs painted on your nails.
           </p>
-          <div class="mt-4 flex flex-wrap gap-2">
-            <Button as-child size="lg">
+          <!-- one row at every width: equal halves on phones, natural width from sm up -->
+          <div class="mt-4 grid grid-cols-2 gap-2 sm:flex">
+            <Button as-child size="lg" class="px-3 text-sm sm:px-7 sm:text-base">
               <RouterLink to="/client/studio"><Sparkles /> New design</RouterLink>
             </Button>
-            <Button as-child size="lg" variant="outline">
-              <RouterLink to="/client/history"><Images /> Previous designs</RouterLink>
+            <Button as-child size="lg" variant="outline" class="px-3 text-sm sm:px-7 sm:text-base">
+              <RouterLink to="/client/history" aria-label="Previous designs"
+                ><Images /><span class="sm:hidden">My designs</span
+                ><span class="hidden sm:inline">Previous designs</span></RouterLink
+              >
             </Button>
           </div>
         </div>
