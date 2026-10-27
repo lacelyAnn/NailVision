@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import StarRating from '@/components/StarRating.vue'
 import ImageViewer from '@/components/ImageViewer.vue'
 import BookDialog from '@/components/BookDialog.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useDesigns, type SavedDesign } from '@/stores/designs'
 
 const store = useDesigns()
@@ -29,9 +30,13 @@ watch(filter, () => (page.value = 1))
 const when = (t: number) =>
   new Date(t).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
-const del = (id: string) =>
-  confirm('Delete this design? This cannot be undone.') && store.remove(id)
-const clearAll = () => confirm('Delete all saved designs? This cannot be undone.') && store.clear()
+// what the confirm dialog is asking about: one design, or every design
+const deleting = ref<SavedDesign | 'all' | null>(null)
+function confirmDelete() {
+  if (deleting.value === 'all') store.clear()
+  else if (deleting.value) store.remove(deleting.value.id)
+  deleting.value = null
+}
 </script>
 
 <template>
@@ -58,7 +63,7 @@ const clearAll = () => confirm('Delete all saved designs? This cannot be undone.
             {{ f }}
           </button>
         </div>
-        <Button variant="outline" size="sm" @click="clearAll"><Trash2 /> Clear all</Button>
+        <Button variant="outline" size="sm" @click="deleting = 'all'"><Trash2 /> Clear all</Button>
       </div>
     </div>
 
@@ -105,7 +110,7 @@ const clearAll = () => confirm('Delete all saved designs? This cannot be undone.
             <button
               class="text-muted-foreground hover:text-destructive focus-visible:ring-ring/50 cursor-pointer rounded p-1 outline-none focus-visible:ring-[3px]"
               :aria-label="`Delete ${d.style} design`"
-              @click="del(d.id)"
+              @click="deleting = d"
             >
               <Trash2 class="size-4" />
             </button>
@@ -163,5 +168,18 @@ const clearAll = () => confirm('Delete all saved designs? This cannot be undone.
 
     <ImageViewer :src="view" alt="Design in full screen" @close="view = null" />
     <BookDialog :design="booking" @close="booking = null" />
+    <ConfirmDialog
+      :open="!!deleting"
+      :title="deleting === 'all' ? 'Delete all saved designs?' : 'Delete this design?'"
+      :message="
+        deleting === 'all'
+          ? `All ${store.items.length} designs and their ratings will be removed from this browser. This cannot be undone.`
+          : 'The design and its rating will be removed from this browser. This cannot be undone.'
+      "
+      :confirm-label="deleting === 'all' ? 'Delete all' : 'Delete design'"
+      :image="deleting && deleting !== 'all' ? deleting.zoom : undefined"
+      @confirm="confirmDelete"
+      @close="deleting = null"
+    />
   </div>
 </template>

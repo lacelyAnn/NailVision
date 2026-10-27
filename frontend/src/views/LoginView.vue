@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { Eye, EyeOff } from 'lucide-vue-next'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { ArrowLeft, Eye, EyeOff } from 'lucide-vue-next'
 import { Card } from '@/components/ui/card'
 import PolishNails from '@/components/PolishNails.vue'
 import { Button } from '@/components/ui/button'
@@ -79,6 +79,9 @@ const field =
     </aside>
 
     <section class="p-6 sm:p-10" aria-labelledby="login-title">
+      <Button as-child variant="ghost" size="sm" class="text-muted-foreground mb-4 -ml-3.5">
+        <RouterLink to="/"><ArrowLeft /> Back to home</RouterLink>
+      </Button>
       <Transition name="swap" mode="out-in">
         <h2
           id="login-title"

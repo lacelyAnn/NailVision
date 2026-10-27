@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import StarRating from '@/components/StarRating.vue'
 import ImageViewer from '@/components/ImageViewer.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useAuth } from '@/stores/auth'
 import { supabase, type Booking } from '@/lib/supabase'
 
@@ -49,9 +50,15 @@ async function review(b: Booking) {
   if (e) error.value = e.message
 }
 
-async function cancel(b: Booking) {
-  if (!confirm('Cancel this booking?')) return
+const cancelling = ref<Booking | null>(null)
+const cancelBusy = ref(false)
+async function cancel() {
+  const b = cancelling.value
+  if (!b) return
+  cancelBusy.value = true
   const { error: e } = await supabase.from('bookings').delete().eq('id', b.id)
+  cancelBusy.value = false
+  cancelling.value = null
   if (e) error.value = e.message
   else items.value = items.value.filter((x) => x.id !== b.id)
 }
@@ -176,7 +183,7 @@ const when = (t: string) =>
               </div>
               <p v-if="b.tech_note" class="bg-accent rounded-lg p-2 text-xs">{{ b.tech_note }}</p>
             </template>
-            <Button v-else variant="outline" size="sm" class="self-start" @click="cancel(b)"
+            <Button v-else variant="outline" size="sm" class="self-start" @click="cancelling = b"
               ><Trash2 /> Cancel booking</Button
             >
           </div>
@@ -185,5 +192,16 @@ const when = (t: string) =>
     </div>
 
     <ImageViewer :src="view" alt="Design in full screen" @close="view = null" />
+    <ConfirmDialog
+      :open="!!cancelling"
+      title="Cancel this booking?"
+      :message="`Your request to ${cancelling?.companies?.name ?? 'the salon'} will be withdrawn. You can book the design again later.`"
+      confirm-label="Cancel booking"
+      dismiss-label="Keep booking"
+      :image="cancelling?.zoom"
+      :busy="cancelBusy"
+      @confirm="cancel"
+      @close="cancelling = null"
+    />
   </div>
 </template>
