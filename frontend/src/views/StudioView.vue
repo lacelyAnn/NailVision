@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount, onDeactivated } from 'vue'
 import {
-  ImagePlus,
+  ScanLine,
+  X,
   Sparkles,
   Loader,
   Download,
@@ -84,11 +85,8 @@ async function run() {
   }
 }
 
-function onFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const f = input.files?.[0]
-  if (!f) return
-  photoName.value = f.name
+function load(f: Blob, name: string) {
+  photoName.value = name
   const i = new Image()
   i.onload = async () => {
     img = i
@@ -98,7 +96,83 @@ function onFile(e: Event) {
   }
   photoUrl.value = URL.createObjectURL(f)
   i.src = photoUrl.value
-  input.value = ''
+}
+
+// live camera scan: rear camera on phones, webcam on computers.
+// Nails are detected on every frame; once the same count holds for STEADY frames, that frame becomes the photo.
+const STEADY = 3
+const scanning = ref(false)
+const video = ref<HTMLVideoElement>()
+const overlay = ref<HTMLCanvasElement>()
+const liveCount = ref(0)
+const steady = ref(0)
+const countdown = ref(0) // seconds left before detection starts, time to place the hand
+let stream: MediaStream | null = null
+let scanId = 0
+
+async function startScan() {
+  error.value = ''
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1920 } },
+      audio: false,
+    })
+    scanning.value = true
+    liveCount.value = steady.value = 0
+    await nextTick()
+    video.value!.srcObject = stream
+    scanLoop(++scanId)
+  } catch (e) {
+    stopScan()
+    error.value =
+      e instanceof DOMException && e.name === 'NotAllowedError'
+        ? 'Camera access was blocked. Allow the camera in your browser or app settings, then try again.'
+        : 'No camera could be opened on this device.'
+  }
+}
+
+function stopScan() {
+  scanId++ // ends a running scanLoop
+  stream?.getTracks().forEach((t) => t.stop())
+  stream = null
+  scanning.value = false
+}
+
+async function scanLoop(id: number) {
+  for (countdown.value = 5; countdown.value > 0; countdown.value--) {
+    await new Promise((r) => setTimeout(r, 1000))
+    if (id !== scanId) return
+  }
+  const frame = document.createElement('canvas')
+  while (id === scanId) {
+    const v = video.value
+    if (!v?.videoWidth) {
+      await new Promise((r) => setTimeout(r, 100)) // camera still starting
+      continue
+    }
+    frame.width = v.videoWidth
+    frame.height = v.videoHeight
+    frame.getContext('2d')!.drawImage(v, 0, 0)
+    try {
+      const d = await detectNails(frame, conf.value[0] ?? 0.35)
+      if (id !== scanId) return
+      const n = d.nails.length
+      steady.value = !n ? 0 : n === liveCount.value ? steady.value + 1 : 1
+      liveCount.value = n
+      if (overlay.value) drawDetections(overlay.value, frame, d, [], false)
+      if (steady.value >= STEADY) {
+        stopScan()
+        frame.toBlob(
+          (b) => b && load(b, `Scan ${new Date().toLocaleTimeString()}`),
+          'image/jpeg',
+          0.92,
+        )
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+      stopScan()
+    }
+  }
 }
 
 async function generate() {
@@ -176,7 +250,11 @@ const match = (de: number) =>
       : { text: 'Loose match', cls: 'text-muted-foreground' }
 
 watch(selected, redraw)
-onBeforeUnmount(() => clearInterval(timer))
+onBeforeUnmount(() => {
+  clearInterval(timer)
+  stopScan()
+})
+onDeactivated(stopScan) // KeepAlive: release the camera when leaving the page
 </script>
 
 <template>
@@ -189,7 +267,7 @@ onBeforeUnmount(() => clearInterval(timer))
           Try nail designs on your own hand
         </h1>
         <p class="text-muted-foreground mt-1.5 max-w-xl text-sm leading-relaxed">
-          Upload a photo, pick up to three polishes, and get five designs painted on your nails.
+          Scan your hand, pick up to three polishes, and get five designs painted on your nails.
         </p>
       </div>
       <ol class="flex items-center gap-2 text-xs font-medium" aria-label="Progress">
@@ -214,58 +292,119 @@ onBeforeUnmount(() => clearInterval(timer))
     <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
       <!-- stage -->
       <section aria-label="Hand photo" class="flex flex-col">
-        <label
-          v-if="!hasPhoto"
-          class="bg-card hover:border-primary focus-within:ring-ring/50 flex min-h-[460px] flex-1 cursor-pointer flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-8 text-center transition-colors focus-within:ring-[3px]"
+        <Card v-if="scanning" class="flex-1 overflow-hidden rounded-2xl shadow-sm">
+          <div class="flex items-center gap-3 border-b px-4 py-3">
+            <div class="min-w-0">
+              <p class="text-sm font-semibold">Scanning</p>
+              <p class="text-muted-foreground text-xs" role="status">
+                <template v-if="countdown"
+                  >Place your hand in the frame. Detecting in {{ countdown }}s…</template
+                >
+                <template v-else-if="!liveCount"
+                  >Looking for nails. Fit your hand inside the frame.</template
+                >
+                <template v-else>
+                  {{ liveCount }} {{ liveCount === 1 ? 'nail' : 'nails' }} found. Hold still…
+                </template>
+              </p>
+            </div>
+            <Button variant="outline" size="sm" class="ml-auto" @click="stopScan">
+              <X /> Cancel
+            </Button>
+          </div>
+          <div class="bg-black">
+            <div class="relative mx-auto max-w-[640px] overflow-hidden">
+              <video
+                ref="video"
+                autoplay
+                playsinline
+                muted
+                class="aspect-square w-full object-cover"
+              />
+              <!-- same size and crop as the video, so the boxes sit on the nails -->
+              <canvas
+                ref="overlay"
+                class="pointer-events-none absolute inset-0 size-full object-cover"
+                aria-hidden="true"
+              />
+              <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+                <span class="scan-frame" />
+                <span v-if="!countdown" class="scan-line" />
+                <Transition name="fade" mode="out-in">
+                  <span
+                    v-if="countdown"
+                    :key="countdown"
+                    class="font-display absolute inset-0 grid place-items-center text-8xl font-extrabold text-white drop-shadow-lg"
+                    >{{ countdown }}</span
+                  >
+                </Transition>
+              </div>
+            </div>
+          </div>
+          <!-- fills as the nails hold steady; full = photo taken -->
+          <div class="bg-muted h-1.5" aria-hidden="true">
+            <div
+              class="bg-primary h-full transition-all duration-300"
+              :style="{ width: `${(Math.min(steady, STEADY) / STEADY) * 100}%` }"
+            />
+          </div>
+        </Card>
+
+        <div
+          v-else-if="!hasPhoto"
+          class="bg-card flex min-h-[460px] flex-1 flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-8 text-center"
         >
           <span
             class="bg-accent text-primary flex size-14 items-center justify-center rounded-full"
           >
-            <ImagePlus class="size-6" />
+            <ScanLine class="size-6" />
           </span>
-          <span class="font-display text-2xl font-bold tracking-tight"
-            >Start with a hand photo</span
-          >
+          <span class="font-display text-2xl font-bold tracking-tight">Scan your hand</span>
           <span class="text-muted-foreground max-w-sm text-sm leading-relaxed">
-            Nails facing the camera in even light works best. NailVision finds each nail and numbers
-            it from left to right.
+            Lay your hand flat, nails facing the camera, in even light. NailVision finds each nail
+            and numbers it from left to right.
           </span>
-          <Button as="span" size="lg">Choose a photo</Button>
-          <input type="file" accept="image/*" class="sr-only" @change="onFile" />
-        </label>
+          <Button size="lg" @click="startScan"><ScanLine /> Start scan</Button>
+          <span class="text-muted-foreground text-xs">
+            The photo is taken automatically once your nails are found.
+          </span>
+        </div>
 
         <Card v-else class="flex-1 overflow-hidden rounded-2xl shadow-sm">
           <div class="flex items-center gap-3 border-b px-4 py-3">
             <div class="min-w-0">
               <p class="truncate text-sm font-semibold">{{ photoName }}</p>
               <p class="text-muted-foreground text-xs">
-                <template v-if="busy">Detecting nails</template>
+                <template v-if="busy">Scanning nails…</template>
                 <template v-else-if="det">
                   {{ det.nails.length }} {{ det.nails.length === 1 ? 'nail' : 'nails' }} found in
                   {{ det.ms.toFixed(0) }} ms
                 </template>
               </p>
             </div>
-            <label class="ml-auto">
-              <Button as="span" variant="outline" size="sm">Change photo</Button>
-              <input type="file" accept="image/*" class="sr-only" @change="onFile" />
-            </label>
+            <Button variant="outline" size="sm" class="ml-auto" @click="startScan">
+              <ScanLine /> Rescan
+            </Button>
           </div>
           <div class="bg-muted/50 relative p-3">
             <canvas
               ref="canvas"
               class="mx-auto aspect-square w-full max-w-[640px] rounded-lg object-contain"
             />
-            <div
-              v-if="busy"
-              class="bg-background/60 absolute inset-0 flex items-center justify-center backdrop-blur-[2px]"
-            >
-              <span
-                class="bg-card flex items-center gap-2 rounded-full border px-4 py-2 text-sm shadow"
+            <Transition name="fade">
+              <div
+                v-if="busy"
+                class="bg-background/30 absolute inset-3 flex items-end justify-center overflow-hidden rounded-lg pb-4"
+                role="status"
               >
-                <Loader class="size-4 animate-spin" /> Finding nails
-              </span>
-            </div>
+                <span class="scan-line" aria-hidden="true" />
+                <span
+                  class="bg-card/95 relative flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium shadow"
+                >
+                  <Loader class="text-primary size-4 animate-spin" /> Scanning for nails…
+                </span>
+              </div>
+            </Transition>
           </div>
         </Card>
 
@@ -376,7 +515,7 @@ onBeforeUnmount(() => clearInterval(timer))
             {{ generating ? 'Generating' : 'Generate 5 designs' }}
           </Button>
           <p v-if="!selected.length" class="text-muted-foreground mt-2 text-center text-xs">
-            Upload a photo with visible nails first.
+            Scan a hand with visible nails first.
           </p>
           <p v-if="genStatus" role="status" class="text-muted-foreground mt-3 text-center text-xs">
             {{ genStatus }}.
@@ -432,7 +571,7 @@ onBeforeUnmount(() => clearInterval(timer))
         v-if="!designs.length && !pending"
         class="text-muted-foreground bg-card/90 mt-5 rounded-2xl border-2 border-dashed p-8 text-center text-sm"
       >
-        Your five designs will appear here. Add a photo, then choose Generate 5 designs.
+        Your five designs will appear here. Scan your hand, then choose Generate 5 designs.
       </p>
       <!-- one row of 5: cards shrink to fit, and the row scrolls sideways on narrow screens -->
       <div class="mt-5 grid auto-cols-[minmax(11rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2">

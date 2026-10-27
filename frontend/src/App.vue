@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
-import { RefreshCw, LogOut } from 'lucide-vue-next'
+import { RefreshCw, LogOut, Loader } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { service, deviceLabel, refreshService } from '@/lib/service'
 import { useAuth } from '@/stores/auth'
@@ -34,11 +34,13 @@ async function signOut() {
 
 // top bar: creeps toward 85% while busy, then fills and fades once the next page is shown
 const bar = ref<'idle' | 'run' | 'done'>('idle')
+const leaving = ref(false) // fixed when busy starts: profile flips mid sign-in
 let hide: ReturnType<typeof setTimeout>
 watch(
   () => auth.busy,
   (on) => {
     clearTimeout(hide)
+    if (on) leaving.value = !!auth.profile
     bar.value = on ? 'run' : 'done'
     if (!on) hide = setTimeout(() => (bar.value = 'idle'), 500)
   },
@@ -49,6 +51,31 @@ onMounted(refreshService)
 <template>
   <div class="flex min-h-screen flex-col">
     <div class="auth-bar" :class="bar" aria-hidden="true" />
+    <Transition name="fade">
+      <div
+        v-if="auth.busy"
+        class="bg-background/70 fixed inset-0 z-40 grid place-items-center backdrop-blur-sm"
+        role="status"
+        aria-live="polite"
+      >
+        <div
+          class="bg-card flex flex-col items-center gap-3 rounded-2xl border px-10 py-8 shadow-lg"
+        >
+          <span class="relative block size-14 overflow-hidden rounded-full border bg-[#fefcfa]">
+            <img
+              :src="logo"
+              alt=""
+              class="absolute max-w-none"
+              style="width: 156px; left: -54px; top: -31px"
+            />
+          </span>
+          <p class="flex items-center gap-2 text-sm font-medium">
+            <Loader class="text-primary size-4 animate-spin" />
+            {{ leaving ? 'Signing you out…' : 'Signing you in…' }}
+          </p>
+        </div>
+      </div>
+    </Transition>
     <div class="app-bg" aria-hidden="true" :style="{ backgroundImage: `url(${bg})` }" />
     <header class="bg-card sticky top-0 z-10 border-b">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2 sm:px-6">
