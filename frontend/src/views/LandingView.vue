@@ -300,19 +300,15 @@ const apkUrl = `${import.meta.env.BASE_URL}downloads/NailVision.apk`
             Get the NailVision app
           </h2>
           <p class="text-muted-foreground mt-1.5 max-w-[55ch] text-sm leading-relaxed">
-            Install it on your Android phone. You may need to allow installs from your browser. On
-            iPhone, use NailVision right here in Safari until the App Store version is out.
+            Install it on your Android phone. You may need to allow installs from your browser.
           </p>
         </div>
       </div>
-      <div class="flex flex-wrap gap-3">
-        <Button as-child size="lg"
-          ><a :href="apkUrl" download="NailVision.apk"
-            ><Download aria-hidden="true" />Download for Android</a
-          ></Button
-        >
-        <Button size="lg" variant="outline" disabled>iPhone: coming soon</Button>
-      </div>
+      <Button as-child size="lg"
+        ><a :href="apkUrl" download="NailVision.apk"
+          ><Download aria-hidden="true" />Download for Android</a
+        ></Button
+      >
     </section>
 
     <section

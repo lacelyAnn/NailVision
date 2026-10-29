@@ -286,7 +286,8 @@ Run `npm run android` again after every code change. iOS needs a Mac (`npm i @ca
 ## ☁️ Deploy
 
 - 🐳 **Design service → Render (free plan works):** New → Web Service → connect the GitHub repo → **Root Directory** `backend`, **Language** Docker. The image has no torch, so it fits the free 512 MB. Environment variables: `CF_ACCOUNT_ID`, `CF_API_TOKEN`, `ALLOWED_ORIGINS` (see `backend/.env.example`). Leave `GEN_FALLBACK_LOCAL` unset there.
-- ▲ **Frontend → Vercel:** set **Root Directory** to `frontend`, then set `VITE_SD_URL` to your Render address, and optionally `VITE_SD_TOKEN`. On Render, set `ALLOWED_ORIGINS` to your Vercel address.
+- ▲ **Frontend → Vercel:** set **Root Directory** to `frontend`, then set `VITE_SD_URL` to your Render address, and optionally `VITE_SD_TOKEN`. On Render, set `ALLOWED_ORIGINS` to your Vercel address plus `https://localhost` (the Android app), e.g. `https://nailvision.vercel.app,https://localhost`.
+- 🤖 **Android app:** `npm run apk` (needs `JAVA_HOME` and the Android SDK) builds the APK into `public/downloads/`, so the next Vercel deploy serves it from the landing page.
 
 > ⏱️ A free Render service sleeps after 15 minutes without visits. The first request then takes about a minute to wake it up.
 
