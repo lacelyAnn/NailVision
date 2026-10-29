@@ -12,12 +12,14 @@
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
-    "android": "vite build && cap sync android && cap open android",
-    "format": "prettier --write --experimental-cli src/"
+    "android": "vite build && node -e \"require('fs').rmSync('dist/downloads',{recursive:true,force:true})\" && cap sync android && cap open android",
+    "format": "prettier --write --experimental-cli src/",
+    "apk": "vite build && node -e \"require('fs').rmSync('dist/downloads',{recursive:true,force:true})\" && cap sync && cd android && gradlew assembleDebug && cd .. && node -e \"require('fs').copyFileSync('android/app/build/outputs/apk/debug/app-debug.apk','public/downloads/NailVision.apk')\""
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.3",
-    "@capacitor/core": "^8.5.3",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@fontsource-variable/figtree": "^5.3.0",
     "@supabase/supabase-js": "^2.118.0",
@@ -36,7 +38,7 @@
     "vue-router": "^5.3.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.5.3",
+    "@capacitor/cli": "^8.6.0",
     "@tsconfig/node24": "^24.0.5",
     "@types/node": "^24.13.4",
     "@vitejs/plugin-vue": "^6.0.8",

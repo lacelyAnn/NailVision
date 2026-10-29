@@ -9,7 +9,10 @@ import {
   CalendarCheck,
   ShieldCheck,
   Check,
+  Download,
+  Smartphone,
 } from 'lucide-vue-next'
+import { Capacitor } from '@capacitor/core'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import PolishNails from '@/components/PolishNails.vue'
@@ -77,6 +80,10 @@ const qualities = [
 ]
 
 const statuses = ['Waiting for review', 'Accepted', 'Needs changes', 'Done']
+
+// no point offering the app download inside the app itself
+const isApp = Capacitor.isNativePlatform()
+const apkUrl = `${import.meta.env.BASE_URL}downloads/NailVision.apk`
 </script>
 
 <template>
@@ -274,6 +281,38 @@ const statuses = ['Waiting for review', 'Accepted', 'Needs changes', 'Done']
           Doable in about an hour. I'd keep the tips short and go one shade lighter on the base.
         </p>
       </figure>
+    </section>
+
+    <section
+      v-if="!isApp"
+      v-scroll-in
+      class="bg-card/90 flex flex-col gap-5 rounded-3xl border p-6 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:p-10"
+      aria-labelledby="app-title"
+    >
+      <div class="flex items-start gap-4">
+        <span
+          class="bg-accent text-primary grid size-14 shrink-0 place-items-center rounded-2xl border"
+        >
+          <Smartphone class="size-7" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 id="app-title" class="font-display text-2xl font-extrabold tracking-tight">
+            Get the NailVision app
+          </h2>
+          <p class="text-muted-foreground mt-1.5 max-w-[55ch] text-sm leading-relaxed">
+            Install it on your Android phone. You may need to allow installs from your browser. On
+            iPhone, use NailVision right here in Safari until the App Store version is out.
+          </p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <Button as-child size="lg"
+          ><a :href="apkUrl" download="NailVision.apk"
+            ><Download aria-hidden="true" />Download for Android</a
+          ></Button
+        >
+        <Button size="lg" variant="outline" disabled>iPhone: coming soon</Button>
+      </div>
     </section>
 
     <section
