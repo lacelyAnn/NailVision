@@ -202,7 +202,7 @@ python -m uvicorn server:app --port 8000
 | Page | What it is for |
 |---|---|
 | 🏠 **Dashboard** | Your overview: designs made, average rating, recent designs, how you rate designs, and service status. |
-| 🎨 **Studio** | Upload a photo, choose polishes, and generate designs. |
+| 🎨 **Studio** | Scan your Hand, choose polishes, and generate designs. |
 | 🗂️ **Previous designs** | Every design you saved. Rate, filter (All / Rated / Unrated), view full screen, delete, and browse by page. **Book at a salon** sends a design to a company. |
 | 📅 **My bookings** (client) | Designs you sent to a salon, their status, and the technician's rating and advice. |
 | 💼 **Design reviews** (technician) | Bookings for your company. Set the status, rate if the design is worth it, and leave advice. |
