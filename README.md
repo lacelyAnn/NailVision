@@ -1,7 +1,7 @@
 # 💅 NailVision
 
-**Capture · Choose · Get your perfect look.**
-Upload a photo of your hand, pick up to three polish colors, and NailVision paints **5 nail designs** on your own nails.
+**Scan · Choose · Get your perfect look.**
+Scan your hand, pick up to three polish colors, and NailVision paints **5 nail designs** on your own nails.
 
 | | |
 |---|---|
