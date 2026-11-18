@@ -154,7 +154,7 @@ async function scanLoop(id: number) {
     frame.height = v.videoHeight
     frame.getContext('2d')!.drawImage(v, 0, 0)
     try {
-      const d = await detectNails(frame, conf.value[0] ?? 0.35)
+      const d = await detectNails(frame, conf.value[0] ?? 0.35, 0.5, false)
       if (id !== scanId) return
       const n = d.nails.length
       steady.value = !n ? 0 : n === liveCount.value ? steady.value + 1 : 1

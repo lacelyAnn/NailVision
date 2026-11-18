@@ -44,6 +44,7 @@ export async function detectNails(
   img: HTMLImageElement | HTMLCanvasElement,
   conf = 0.35,
   iouThr = 0.5,
+  withMasks = true, // false for live frames: boxes only, skips the heavy per-pixel mask math
 ): Promise<Detection> {
   const t0 = performance.now()
   const W = img instanceof HTMLImageElement ? img.naturalWidth : img.width
@@ -97,7 +98,7 @@ export async function detectNails(
     const id = mctx.createImageData(PROTO, PROTO)
     const k4 = SIZE / PROTO
     const [bx0, by0, bx1, by1] = k.box
-    for (let y = 0; y < PROTO; y++) {
+    for (let y = 0; withMasks && y < PROTO; y++) {
       for (let x = 0; x < PROTO; x++) {
         const lx = x * k4,
           ly = y * k4
