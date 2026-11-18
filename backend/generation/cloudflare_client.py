@@ -5,12 +5,22 @@ Env: CF_ACCOUNT_ID, CF_API_TOKEN. The token stays on the server; it is never log
 import asyncio
 import logging
 import os
+import random
 
 import httpx
 
 MODEL = "@cf/runwayml/stable-diffusion-v1-5-inpainting"
-RETRIES = 3  # extra attempts after the first, on 429 and 5xx
+RETRIES = 6  # extra attempts after the first, on 429 and 5xx
+MAX_WAIT = 30  # seconds; "Capacity temporarily exceeded" (code 3040) can last half a minute or more
 log = logging.getLogger(__name__)
+
+
+def _wait(attempt: int, r: httpx.Response) -> float:
+    """Retry-After when Cloudflare sends one, else 1, 2, 4, 8, 16, 30 s. The jitter keeps the
+    concurrent requests of one job from all retrying in the same instant."""
+    after = r.headers.get("retry-after", "")
+    base = float(after) if after.isdigit() else 2 ** attempt
+    return min(base, MAX_WAIT) + random.uniform(0, 1)
 
 
 class CloudflareError(RuntimeError):
@@ -32,8 +42,9 @@ async def inpaint(image_png: bytes, mask_png: bytes, prompt: str, negative_promp
         for attempt in range(RETRIES + 1):
             r = await client.post(url, json=body, headers={"Authorization": f"Bearer {token}"})
             if (r.status_code == 429 or r.status_code >= 500) and attempt < RETRIES:
-                log.warning("Cloudflare %s, retry %d/%d", r.status_code, attempt + 1, RETRIES)
-                await asyncio.sleep(2 ** attempt)
+                wait = _wait(attempt, r)
+                log.warning("Cloudflare %s, retry %d/%d in %.1fs", r.status_code, attempt + 1, RETRIES, wait)
+                await asyncio.sleep(wait)
                 continue
             if r.status_code != 200:
                 log.error("Cloudflare %s: %s", r.status_code, r.text[:2000])
