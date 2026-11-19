@@ -6,7 +6,7 @@ Scan your hand, pick up to three polish colors, and NailVision paints **5 nail d
 | | |
 |---|---|
 | 🖼️ **Frontend** | Vue 3 + Vite. Finds your nails right in the browser. |
-| 🎨 **Design service** | A Python FastAPI server (`backend/`) that paints the designs with Stable Diffusion inpainting on Cloudflare Workers AI (or a local model). |
+| 🎨 **Design service** | A Python FastAPI server (`backend/`) that paints the designs with Stable Diffusion inpainting on Replicate (or a local model). |
 
 ```
 NailVision/
@@ -153,7 +153,7 @@ pip install -r requirements.txt
 python -m uvicorn server:app --port 8000
 ```
 
-> 🧠 That is enough for Cloudflare (the default). For the local Stable Diffusion model (`GEN_BACKEND=local` or `GEN_FALLBACK_LOCAL=true`) also run
+> 🧠 That is enough for Replicate (the default). For the local Stable Diffusion model (`GEN_BACKEND=local` or `GEN_FALLBACK_LOCAL=true`) also run
 > `pip install torch --index-url https://download.pytorch.org/whl/cpu` and `pip install -r requirements-local.txt`.
 
 > 🍎🐧 On macOS or Linux use `source .venv/bin/activate` instead of the `Activate.ps1` line.
@@ -162,26 +162,25 @@ python -m uvicorn server:app --port 8000
 
 ✅ **Check it works:** open <http://localhost:8000/health>. The top bar of the app should say **Design service ready** and show **GPU** or **CPU**.
 
-### ☁️ Paint on Cloudflare Workers AI (default)
-By default the server sends each nail to Cloudflare's `@cf/runwayml/stable-diffusion-v1-5-inpainting` model instead of running Stable Diffusion itself. That is fast even on a small server.
+### ☁️ Paint on Replicate (default)
+By default the server sends each nail to Replicate's [`stability-ai/stable-diffusion-inpainting`](https://replicate.com/stability-ai/stable-diffusion-inpainting) model instead of running Stable Diffusion itself. That is fast even on a small server.
 
-1. In the Cloudflare dashboard, copy your **Account ID** (Workers & Pages → right side).
-2. Create an API token: **My Profile → API Tokens → Create Token → Workers AI** template.
-3. Put them in `backend/.env.local` (copy `backend/.env.example`); the server reads it on start. Or set them in PowerShell (on Render: the Environment tab):
+1. Sign in at <https://replicate.com> (GitHub login works) and add billing under **Account settings → Billing**. Replicate charges per second of GPU time; one nail costs a fraction of a cent, a full job (5 designs × your nails) a few cents.
+2. Open **Account settings → API tokens** (<https://replicate.com/account/api-tokens>), type a name such as `nailvision`, and press **Create token**. Copy it (it starts with `r8_`).
+3. Put it in `backend/.env` (copy `backend/.env.example`); the server reads it on start. Or set it in PowerShell (on Render: the Environment tab):
    ```powershell
-   $env:CF_ACCOUNT_ID = "your-account-id"
-   $env:CF_API_TOKEN  = "your-token"
-   $env:GEN_FALLBACK_LOCAL = "true"   # optional: paint locally if Cloudflare fails
+   $env:REPLICATE_API_TOKEN = "r8_your-token"
+   $env:GEN_FALLBACK_LOCAL  = "true"   # optional: paint locally if Replicate fails
    ```
 4. Check it with one real request. It saves `smoke_out.png`:
    ```powershell
    cd backend
-   python -m scripts.smoke_cloudflare
+   python -m scripts.smoke_replicate
    ```
 
-To use only the local model, set `$env:GEN_BACKEND = "local"`. Cloudflare always uses 20 steps, so the **Design quality** choice only affects the local model.
+To use only the local model, set `$env:GEN_BACKEND = "local"`. The **Design quality** choice (15 / 30 / 45 steps) applies to Replicate too; more steps cost a little more.
 
-Each design in `GET /jobs/{id}` records `backend` (`cloudflare`, `local` or `mock`), `seed`, `prompt`, `latency_ms` (time spent in the model), `delta_e` and `on_palette`.
+Each design in `GET /jobs/{id}` records `backend` (`replicate`, `local` or `mock`), `seed`, `prompt`, `latency_ms` (time spent in the model), `delta_e` and `on_palette`.
 
 Unit tests: `cd backend` then `python -m unittest discover tests`.
 
@@ -228,9 +227,9 @@ Clients use pages under `#/client`, nail technicians under `#/tech`. Each accoun
 |---|---|---|
 | `VITE_SD_URL` | `frontend/.env` | Address of the design service. |
 | `VITE_SD_TOKEN` | `frontend/.env` | Optional password. Must match `API_TOKEN` on the server. |
-| `GEN_BACKEND` | server | `cloudflare` (default) paints on Cloudflare Workers AI. `local` uses Stable Diffusion on the server itself. |
-| `GEN_FALLBACK_LOCAL` | server | `true` = if Cloudflare fails for a design, paint that design locally instead. |
-| `CF_ACCOUNT_ID`, `CF_API_TOKEN` | server | Cloudflare login for Workers AI. Keep them on the server only, never in `.env` of the app. |
+| `GEN_BACKEND` | server | `replicate` (default) paints on Replicate. `local` uses Stable Diffusion on the server itself. |
+| `GEN_FALLBACK_LOCAL` | server | `true` = if Replicate fails for a design, paint that design locally instead. |
+| `REPLICATE_API_TOKEN` | server | Replicate API token (`r8_...`). Keep it on the server only, never in `.env` of the app. |
 | `MOCK=1` | server | Test mode, no Stable Diffusion. |
 | `DEVICE` | server | Force `cuda`, `mps` or `cpu`. Normally leave it empty. |
 | `MODEL_DIR` | server | Where the model is stored. |
@@ -285,7 +284,7 @@ Run `npm run android` again after every code change. iOS needs a Mac (`npm i @ca
 
 ## ☁️ Deploy
 
-- 🐳 **Design service → Render (free plan works):** New → Web Service → connect the GitHub repo → **Root Directory** `backend`, **Language** Docker. The image has no torch, so it fits the free 512 MB. Environment variables: `CF_ACCOUNT_ID`, `CF_API_TOKEN`, `ALLOWED_ORIGINS` (see `backend/.env.example`). Leave `GEN_FALLBACK_LOCAL` unset there.
+- 🐳 **Design service → Render (free plan works):** New → Web Service → connect the GitHub repo → **Root Directory** `backend`, **Language** Docker. The image has no torch, so it fits the free 512 MB. Environment variables: `REPLICATE_API_TOKEN`, `ALLOWED_ORIGINS` (see `backend/.env.example`). Leave `GEN_FALLBACK_LOCAL` unset there.
 - ▲ **Frontend → Vercel:** set **Root Directory** to `frontend`, then set `VITE_SD_URL` to your Render address, and optionally `VITE_SD_TOKEN`. On Render, set `ALLOWED_ORIGINS` to your Vercel address plus `https://localhost` (the Android app), e.g. `https://nailvision.vercel.app,https://localhost`.
 - 🤖 **Android app:** `npm run apk` (needs `JAVA_HOME` and the Android SDK) builds the APK into `public/downloads/`, so the next Vercel deploy serves it from the landing page.
 
